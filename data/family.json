@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1,
+    "name": "Raju",
+    "dob": "1945-05-06",
+    "gender": "M",
+    "parentId": null,
+    "spouseId": 2,
+    "photo": null,
+    "alarm": true,
+    "note": "Patriarch"
+  },
+  {
+    "id": 2,
+    "name": "Savitri",
+    "dob": "1948-09-14",
+    "gender": "F",
+    "parentId": null,
+    "spouseId": 1,
+    "photo": null,
+    "alarm": false,
+    "note": "Matriarch"
+  }
+]
