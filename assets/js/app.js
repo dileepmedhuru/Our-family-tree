@@ -9,12 +9,12 @@ const expandedIds = new Set([1]);  /* IDs that are currently expanded */
 
 /* ─── Bootstrap ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  loadMembers();
+  /* Firebase will call buildTree() and startAlarmChecker() once connected.
+     We only init UI helpers here. */
   initPhotoInputs();
   initSearch();
-  buildTree();
-  startAlarmChecker();
   initAddModal();
+  loadMembers();   /* triggers Firebase connection → calls buildTree on success */
 });
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -54,12 +54,18 @@ function buildTree() {
   couples.forEach(grp => rootRow.appendChild(makeCoupleEl(grp)));
   canvas.appendChild(rootRow);
 
-  /* Recursively expand each patriarch / solo root */
-  roots
-    .filter(m => m.gender === 'M' || !m.spouseId)
-    .forEach(m => {
-      if (expandedIds.has(m.id)) renderChildren(m.id, canvas, 0);
-    });
+  /* Expand the primary of each couple (the one with children, else first listed) */
+  const expandedRoots = new Set();
+  couples.forEach(grp => {
+    /* Pick whichever partner actually has children, fallback to first */
+    const primary = grp.find(m => getChildren(m.id).length > 0) || grp[0];
+    if (expandedIds.has(primary.id) || (grp[1] && expandedIds.has(grp[1].id))) {
+      if (!expandedRoots.has(primary.id)) {
+        expandedRoots.add(primary.id);
+        renderChildren(primary.id, canvas, 0);
+      }
+    }
+  });
 
   checkBirthdayAlarms();
   updateStats();
@@ -352,6 +358,18 @@ function enterEditMode() {
   document.getElementById('eNote').value   = m.note   || '';
   document.getElementById('eGender').value = m.gender || '';
 
+  /* Show spouse in edit mode (read-only) */
+  const sp2 = m.spouseId ? getMember(m.spouseId) : null;
+  const eSpouseRow = document.getElementById('eSpouseRow');
+  if (sp2) {
+    const lbl = m.gender === 'F' ? 'Wife of' : m.gender === 'M' ? 'Husband of' : 'Spouse of';
+    document.getElementById('eSpouseLabel').textContent = lbl;
+    document.getElementById('eSpouseName').textContent  = sp2.name;
+    eSpouseRow.style.display = '';
+  } else {
+    eSpouseRow.style.display = 'none';
+  }
+
   /* Hide view, show edit */
   document.getElementById('profViewBody').style.display  = 'none';
   document.getElementById('profEditForm').style.display  = '';
@@ -507,6 +525,8 @@ function saveMember() {
 
   if (rt === 'spouse' && parentId) {
     linkSpouses(parentId, newMember.id);
+    /* Ensure spouse renders beside their partner, not as a separate root card */
+    expandedIds.add(parentId);
   }
 
   if (newMember.parentId) expandedIds.add(newMember.parentId);

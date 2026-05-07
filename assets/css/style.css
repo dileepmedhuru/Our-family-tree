@@ -964,3 +964,116 @@ body {
   color: var(--gold);
   font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE-FIRST IMPROVEMENTS
+═══════════════════════════════════════════════════════════════════ */
+
+/* Touch-friendly tap targets */
+@media (max-width: 768px) {
+
+  /* ── Navbar ── */
+  .navbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .nav-brand span { font-size: 1rem; }
+
+  .nav-stats { gap: 6px; }
+  .stat-pill { font-size: 11px; padding: 3px 8px; }
+
+  /* Search takes full second row on mobile */
+  .nav-spacer { display: none; }
+  .search-wrap {
+    order: 10;
+    width: 100%;
+  }
+  #searchInput {
+    width: 100% !important;
+  }
+  #searchResults { width: 100%; left: 0; right: 0; }
+
+  .nav-btn span { display: none; }
+  .nav-btn { padding: 0 10px; min-width: 36px; justify-content: center; }
+
+  /* ── Tree canvas — horizontal scroll on small screens ── */
+  #treeCanvas {
+    padding: 24px 12px 60px;
+    align-items: flex-start;
+    min-width: 320px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    width: 88px;
+    padding: 10px 6px 8px;
+    border-radius: 10px;
+  }
+
+  .card-name  { font-size: 11px; }
+  .card-dob   { font-size: 9.5px; }
+  .card-note  { font-size: 9px; }
+  .card-expand { font-size: 9px; }
+
+  .avatar { width: 52px !important; height: 52px !important; }
+  .avatar .ini { font-size: 14px !important; }
+
+  .heart-badge { font-size: 11px; margin: 0 1px; }
+
+  /* ── Sibling rows wrap on mobile ── */
+  .siblings-row { flex-wrap: wrap; gap: 8px; }
+  .level        { gap: 8px; }
+
+  /* ── Section labels ── */
+  .section-label { font-size: 10px; margin: 10px 0 6px; }
+
+  /* ── Modals — full screen on mobile ── */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+
+  .modal-box {
+    border-radius: var(--radius) var(--radius) 0 0;
+    max-height: 92vh;
+    width: 100%;
+  }
+
+  /* Profile modal header compact */
+  .prof-header { padding: 24px 16px 16px; }
+  .prof-avatar { width: 68px; height: 68px; font-size: 20px; }
+  .prof-name   { font-size: 1.1rem; }
+  .prof-body   { padding: 14px 16px; gap: 10px; }
+  .prof-actions { padding: 0 16px 16px; gap: 6px; }
+
+  /* Form fields larger touch area */
+  .form-group input,
+  .form-group select { height: 42px; font-size: 15px; }
+
+  .modal-form   { padding: 16px; gap: 12px; }
+  .modal-footer { padding: 12px 16px; }
+
+  /* Alarm list */
+  #alarmListEl { padding: 12px 16px; }
+  .alarm-item  { padding: 10px 12px; }
+}
+
+/* Very small phones */
+@media (max-width: 380px) {
+  .card { width: 78px; }
+  .avatar { width: 44px !important; height: 44px !important; }
+  .avatar .ini { font-size: 12px !important; }
+  .nav-btn { padding: 0 8px; }
+}
+
+/* ── Safe area for iOS notch/home bar ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .navbar {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .modal-box {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

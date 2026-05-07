@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Family Tree</title>
 
   <link rel="stylesheet"
@@ -22,6 +22,7 @@
     </div>
 
     <div class="nav-stats">
+      <span id="syncStatus" class="stat-pill" style="color:#a0702a;">⏳ Connecting…</span>
       <span class="stat-pill">Members: <strong id="statTotal">0</strong></span>
       <span class="stat-pill">🔔 <strong id="statAlarms">0</strong></span>
     </div>
@@ -42,6 +43,11 @@
       <span>Alarms</span>
     </button>
 
+    <button class="nav-btn" onclick="downloadPDF()" title="Download family tree as PDF" id="pdfBtn">
+      <i class="ti ti-download"></i>
+      <span>PDF</span>
+    </button>
+
     <button class="nav-btn primary" onclick="openAddModal()">
       <i class="ti ti-plus"></i>
       <span>Add Member</span>
@@ -52,7 +58,7 @@
   <div id="bdayBanner"></div>
 
   <!-- ═══════════════════ TREE CANVAS ═══════════════════ -->
-  <div style="overflow-x:auto;">
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
     <div id="treeCanvas"></div>
   </div>
 
@@ -98,6 +104,13 @@
 
       <!-- ── EDIT FORM ───────────────────────────────────── -->
       <div id="profEditForm" class="prof-body" style="display:none;">
+
+        <!-- Spouse info (read-only in edit mode) -->
+        <div id="eSpouseRow" class="prof-spouse-row" style="display:none;">
+          <span id="eSpouseLabel" class="spouse-label">Husband of</span>
+          <span id="eSpouseName"  class="spouse-name"></span>
+        </div>
+
         <div class="form-group">
           <label>Full Name *</label>
           <input id="eName" type="text" placeholder="Full name" />
@@ -247,11 +260,20 @@
   <input type="file" id="globalPhotoInput" accept="image/*" style="display:none" />
   <input type="file" id="formPhotoInput"   accept="image/*" style="display:none" />
 
+  <!-- ═══════════════════ PDF LIBRARIES ═══════════════════ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- ═══════════════════ FIREBASE SDK (compat build) ═══════════════════ -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
   <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
   <script src="assets/js/members.js"></script>
   <script src="assets/js/photos.js"></script>
   <script src="assets/js/alarms.js"></script>
   <script src="assets/js/search.js"></script>
   <script src="assets/js/app.js"></script>
+  <script src="assets/js/pdf.js"></script>
 </body>
 </html>

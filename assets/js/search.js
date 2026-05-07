@@ -11,7 +11,7 @@ function initSearch() {
   const input = document.getElementById('searchInput');
   const box   = document.getElementById('searchResults');
 
-  input.addEventListener('input',  onSearchInput);
+  input.addEventListener('input', onSearchInput);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') hideSearchDropdown();
     if (e.key === 'Enter') {
@@ -20,7 +20,6 @@ function initSearch() {
     }
   });
 
-  /* Close dropdown when clicking outside */
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.search-wrap')) hideSearchDropdown();
   });
@@ -91,14 +90,12 @@ function clearSearch() {
 function jumpToMember(id) {
   clearSearch();
 
-  /* Expand the member and its parent so it's visible */
   expandedIds.add(id);
   const m = getMember(id);
   if (m && m.parentId) expandedIds.add(m.parentId);
 
   buildTree();
 
-  /* Scroll to card and flash highlight */
   setTimeout(() => {
     const all = document.querySelectorAll('.card');
     all.forEach(card => {

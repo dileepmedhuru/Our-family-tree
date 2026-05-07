@@ -7,11 +7,6 @@ const ALARM_CHECK_INTERVAL_MS = 60 * 1000; /* check every minute */
 
 /* ─── Date helpers ─────────────────────────────────────────────────── */
 
-/**
- * Days until next birthday (0 = today, negative = invalid).
- * @param {string} dob  YYYY-MM-DD
- * @returns {number|null}
- */
 function daysUntilBirthday(dob) {
   if (!dob) return null;
   const today = new Date();
@@ -21,22 +16,12 @@ function daysUntilBirthday(dob) {
   return Math.round((next - today) / 864e5);
 }
 
-/**
- * Format a YYYY-MM-DD string to "6 May 1945" style.
- * @param {string} dob
- * @returns {string}
- */
 function formatDob(dob) {
   if (!dob) return '';
   const d = new Date(dob + 'T00:00:00');
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/**
- * Return today's age for a given dob string.
- * @param {string} dob
- * @returns {number|null}
- */
 function ageToday(dob) {
   if (!dob) return null;
   const today = new Date();
@@ -53,8 +38,8 @@ function checkBirthdayAlarms() {
   const members = getAllMembers();
   const banner  = document.getElementById('bdayBanner');
 
-  const todayBdays  = members.filter(m => m.alarm && m.dob && daysUntilBirthday(m.dob) === 0);
-  const soonBdays   = members.filter(m => m.alarm && m.dob && daysUntilBirthday(m.dob) > 0 && daysUntilBirthday(m.dob) <= 7);
+  const todayBdays = members.filter(m => m.alarm && m.dob && daysUntilBirthday(m.dob) === 0);
+  const soonBdays  = members.filter(m => m.alarm && m.dob && daysUntilBirthday(m.dob) > 0 && daysUntilBirthday(m.dob) <= 7);
 
   const parts = [];
   todayBdays.forEach(m => {
@@ -96,8 +81,8 @@ function renderAlarmList() {
   }
 
   alarmed.forEach(m => {
-    const d    = daysUntilBirthday(m.dob);
-    const age  = ageToday(m.dob);
+    const d   = daysUntilBirthday(m.dob);
+    const age = ageToday(m.dob);
     const item = document.createElement('div');
     item.className = 'alarm-item';
 
