@@ -72,13 +72,9 @@ function renderChildren(parentId, container, depth) {
   const children = getChildren(parentId);
   if (!children.length) return;
 
-  /* Vertical connector */
   container.appendChild(makeVConnector());
-
-  /* Generation label */
   container.appendChild(makeSectionLabel(GEN_LABELS[depth] || `Generation ${depth + 2}`));
 
-  /* Horizontal connector + sibling row */
   const hWrap = document.createElement('div');
   hWrap.className = 'connector-h-wrap';
 
@@ -89,9 +85,8 @@ function renderChildren(parentId, container, depth) {
   children.forEach(child => {
     const col = document.createElement('div');
     col.className = 'node-col';
-    col.appendChild(makeVConnectorSmall());  /* drop line from H-bar */
+    col.appendChild(makeVConnectorSmall());
 
-    /* Child + optional spouse */
     const cr = document.createElement('div');
     cr.className = 'couple-row';
     cr.appendChild(makeCard(child));
@@ -105,7 +100,6 @@ function renderChildren(parentId, container, depth) {
     }
     col.appendChild(cr);
 
-    /* Recurse if expanded */
     if (expandedIds.has(child.id)) {
       const sub = document.createElement('div');
       sub.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
@@ -120,7 +114,6 @@ function renderChildren(parentId, container, depth) {
   container.appendChild(hWrap);
 }
 
-/** Same as renderChildren but appends into `container` without adding another section label at top level. */
 function renderChildrenInto(parentId, container, depth) {
   const children = getChildren(parentId);
   if (!children.length) return;
@@ -272,15 +265,25 @@ function updateStats() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   PROFILE MODAL
+   PROFILE MODAL  — view + edit modes
 ═══════════════════════════════════════════════════════════════════ */
 
-let _profId = null;
+let _profId   = null;
+let _profEdit = false;   /* true = edit mode */
 
 function openProfile(id) {
   const m = getMember(id);
   if (!m) return;
-  _profId = id;
+  _profId   = id;
+  _profEdit = false;
+
+  renderProfileView(m);
+  document.getElementById('profileModal').classList.add('open');
+}
+
+/* ─── VIEW mode ────────────────────────────────────────────────────── */
+function renderProfileView(m) {
+  _profEdit = false;
 
   /* Avatar */
   const av = document.getElementById('pAvatar');
@@ -296,19 +299,31 @@ function openProfile(id) {
   document.getElementById('pName').textContent = m.name;
   document.getElementById('pNote').textContent = m.note || '';
 
-  /* Meta line */
   const sp  = m.spouseId ? getMember(m.spouseId) : null;
-  const ch  = getChildren(id);
+  const ch  = getChildren(m.id);
   const age = ageToday(m.dob);
   const meta = [
     m.gender === 'M' ? 'Male' : m.gender === 'F' ? 'Female' : '',
     age !== null ? `Age ${age}` : '',
-    sp ? 'Spouse: ' + sp.name : '',
     ch.length ? ch.length + ' child' + (ch.length > 1 ? 'ren' : '') : ''
   ].filter(Boolean).join(' · ');
   document.getElementById('pMeta').textContent = meta;
 
-  /* DOB & days */
+  /* Spouse row — “Husband of / Wife of / Spouse of” */
+  const spouseRow   = document.getElementById('pSpouseRow');
+  const spouseLabel = document.getElementById('pSpouseLabel');
+  const spouseName  = document.getElementById('pSpouseName');
+  if (sp) {
+    const label = m.gender === 'F' ? 'Wife of'
+                : m.gender === 'M' ? 'Husband of'
+                : 'Spouse of';
+    spouseLabel.textContent = label;
+    spouseName.textContent  = sp.name;
+    spouseRow.style.display = '';
+  } else {
+    spouseRow.style.display = 'none';
+  }
+
   document.getElementById('pDob').textContent  = m.dob ? 'Born: ' + formatDob(m.dob) : 'No date of birth set';
   const d = daysUntilBirthday(m.dob);
   document.getElementById('pDays').textContent = d === null ? ''
@@ -316,12 +331,79 @@ function openProfile(id) {
     : d === 1 ? '🔔 Birthday Tomorrow!'
     : `🔔 Birthday in ${d} days`;
 
-  /* Alarm toggle */
   syncProfileAlarmToggle(m.alarm);
 
-  document.getElementById('profileModal').classList.add('open');
+  /* Show view sections, hide edit form */
+  document.getElementById('profViewBody').style.display  = '';
+  document.getElementById('profEditForm').style.display  = 'none';
+  document.getElementById('profViewActions').style.display = '';
+  document.getElementById('profEditActions').style.display = 'none';
 }
 
+/* ─── EDIT mode ────────────────────────────────────────────────────── */
+function enterEditMode() {
+  const m = getMember(_profId);
+  if (!m) return;
+  _profEdit = true;
+
+  /* Populate edit fields */
+  document.getElementById('eName').value   = m.name   || '';
+  document.getElementById('eDob').value    = m.dob    || '';
+  document.getElementById('eNote').value   = m.note   || '';
+  document.getElementById('eGender').value = m.gender || '';
+
+  /* Hide view, show edit */
+  document.getElementById('profViewBody').style.display  = 'none';
+  document.getElementById('profEditForm').style.display  = '';
+  document.getElementById('profViewActions').style.display = 'none';
+  document.getElementById('profEditActions').style.display = '';
+
+  /* Focus name field */
+  setTimeout(() => document.getElementById('eName').focus(), 50);
+}
+
+function cancelEdit() {
+  const m = getMember(_profId);
+  if (m) renderProfileView(m);
+}
+
+function saveEdit() {
+  const name = document.getElementById('eName').value.trim();
+  if (!name) {
+    showEditError('Name cannot be empty.');
+    return;
+  }
+
+  updateMember(_profId, {
+    name:   name,
+    dob:    document.getElementById('eDob').value   || '',
+    note:   document.getElementById('eNote').value.trim(),
+    gender: document.getElementById('eGender').value
+  });
+
+  /* Re-render everything */
+  buildTree();
+  const updated = getMember(_profId);
+  renderProfileView(updated);
+
+  showEditSuccess('Changes saved!');
+}
+
+function showEditError(msg) {
+  const el = document.getElementById('editError');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function showEditSuccess(msg) {
+  const el = document.getElementById('editSuccess');
+  el.textContent = '✓ ' + msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+/* ─── Shared profile helpers ───────────────────────────────────────── */
 function closeProfile() {
   document.getElementById('profileModal').classList.remove('open');
 }
@@ -357,7 +439,6 @@ function initAddModal() {
 }
 
 function openAddModal() {
-  /* Reset form */
   ['fName','fDob','fNote'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fGender').value = '';
   document.getElementById('fRel').value    = 'child';
@@ -368,7 +449,6 @@ function openAddModal() {
   document.getElementById('prevImg').style.display  = 'none';
   document.getElementById('dropHint').style.display = 'block';
 
-  /* Populate parent select */
   const sel = document.getElementById('fParent');
   sel.innerHTML = '';
   getAllMembers().forEach(m => {
@@ -425,12 +505,10 @@ function saveMember() {
     alarm:    _formAlarm
   });
 
-  /* Link spouse */
   if (rt === 'spouse' && parentId) {
     linkSpouses(parentId, newMember.id);
   }
 
-  /* Auto-expand parent */
   if (newMember.parentId) expandedIds.add(newMember.parentId);
 
   closeAddModal();
@@ -445,7 +523,7 @@ function showFormError(msg) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   DELETE MEMBER (called from profile modal)
+   DELETE MEMBER
 ═══════════════════════════════════════════════════════════════════ */
 
 function confirmDeleteMember() {

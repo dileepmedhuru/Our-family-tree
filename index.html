@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Tree</title>
+
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════ TOP NAV ═══════════════════ -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🌳</span>
+      <span>Family Tree</span>
+    </div>
+
+    <div class="nav-stats">
+      <span class="stat-pill">Members: <strong id="statTotal">0</strong></span>
+      <span class="stat-pill">🔔 <strong id="statAlarms">0</strong></span>
+    </div>
+
+    <div class="nav-spacer"></div>
+
+    <div class="search-wrap">
+      <i class="ti ti-search"></i>
+      <input id="searchInput" type="text" placeholder="Search members…" autocomplete="off" />
+      <button class="search-clear" onclick="clearSearch()" title="Clear search">
+        <i class="ti ti-x"></i>
+      </button>
+      <div id="searchResults"></div>
+    </div>
+
+    <button class="nav-btn" onclick="showAlarmsModal()" title="View birthday alarms">
+      <i class="ti ti-bell"></i>
+      <span>Alarms</span>
+    </button>
+
+    <button class="nav-btn primary" onclick="openAddModal()">
+      <i class="ti ti-plus"></i>
+      <span>Add Member</span>
+    </button>
+  </nav>
+
+  <!-- ═══════════════════ BIRTHDAY BANNER ═══════════════════ -->
+  <div id="bdayBanner"></div>
+
+  <!-- ═══════════════════ TREE CANVAS ═══════════════════ -->
+  <div style="overflow-x:auto;">
+    <div id="treeCanvas"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       PROFILE MODAL
+  ════════════════════════════════════════════════════════ -->
+  <div id="profileModal" class="modal-overlay">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeProfile()">
+        <i class="ti ti-x"></i>
+      </button>
+
+      <!-- Header — always visible -->
+      <div class="prof-header">
+        <div id="pAvatar" class="prof-avatar" onclick="triggerProfPhoto()"></div>
+        <div id="pName" class="prof-name"></div>
+        <div id="pNote" class="prof-note"></div>
+        <div id="pMeta" class="prof-meta"></div>
+      </div>
+
+      <!-- ── VIEW BODY ───────────────────────────────────── -->
+      <div id="profViewBody" class="prof-body">
+        <!-- Spouse -->
+        <div id="pSpouseRow" class="prof-spouse-row" style="display:none;">
+          <span id="pSpouseLabel" class="spouse-label">Husband of</span>
+          <span id="pSpouseName"  class="spouse-name"></span>
+        </div>
+
+        <div class="prof-row">
+          <div id="pDob"></div>
+        </div>
+        <div id="pDays"></div>
+
+        <div class="alarm-row">
+          <span class="label">Birthday Alarm</span>
+          <div id="pToggle" class="tog" onclick="flipProfAlarm()">
+            <span id="pTogLbl" class="tog-label">Alarm off</span>
+          </div>
+        </div>
+
+        <div id="editSuccess" class="edit-success" style="display:none;"></div>
+      </div>
+
+      <!-- ── EDIT FORM ───────────────────────────────────── -->
+      <div id="profEditForm" class="prof-body" style="display:none;">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input id="eName" type="text" placeholder="Full name" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input id="eDob" type="date" />
+          </div>
+          <div class="form-group">
+            <label>Gender</label>
+            <select id="eGender">
+              <option value="">—</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Note / Occupation</label>
+          <input id="eNote" type="text" placeholder="e.g. Engineer, Homemaker…" />
+        </div>
+
+        <div id="editError" class="form-error" style="display:none;"></div>
+      </div>
+
+      <!-- ── VIEW ACTIONS ────────────────────────────────── -->
+      <div id="profViewActions" class="prof-actions">
+        <button class="btn btn-ghost" onclick="triggerProfPhoto()">
+          <i class="ti ti-camera"></i> Photo
+        </button>
+        <button class="btn btn-ghost" onclick="enterEditMode()">
+          <i class="ti ti-pencil"></i> Edit
+        </button>
+        <button class="btn btn-danger" onclick="confirmDeleteMember()">
+          <i class="ti ti-trash"></i> Remove
+        </button>
+      </div>
+
+      <!-- ── EDIT ACTIONS ────────────────────────────────── -->
+      <div id="profEditActions" class="prof-actions" style="display:none;">
+        <button class="btn btn-secondary" onclick="cancelEdit()">
+          <i class="ti ti-x"></i> Cancel
+        </button>
+        <button class="btn btn-primary" onclick="saveEdit()">
+          <i class="ti ti-check"></i> Save Changes
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════ ADD MEMBER MODAL ═══════════════════ -->
+  <div id="addModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Add Family Member</h2>
+      </div>
+
+      <div class="modal-form">
+        <div class="photo-drop" onclick="openFormPhotoUpload()">
+          <img id="prevImg" src="" alt="preview" style="display:none;" />
+          <div id="dropHint" class="drop-hint">
+            <i class="ti ti-camera" style="font-size:22px;color:var(--text-muted)"></i>
+            <div>Photo</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input id="fName" type="text" placeholder="e.g. Arjun Sharma" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input id="fDob" type="date" />
+          </div>
+          <div class="form-group">
+            <label>Gender</label>
+            <select id="fGender">
+              <option value="">—</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Relationship</label>
+            <select id="fRel">
+              <option value="child">Child of…</option>
+              <option value="spouse">Spouse of…</option>
+              <option value="root">Root (new branch)</option>
+            </select>
+          </div>
+          <div class="form-group" id="parentRow">
+            <label id="parentLbl">Parent</label>
+            <select id="fParent"></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Note / Occupation</label>
+          <input id="fNote" type="text" placeholder="e.g. Engineer, Homemaker…" />
+        </div>
+
+        <div class="alarm-row">
+          <span class="label">Birthday Alarm</span>
+          <div id="fToggle" class="tog" onclick="flipFormAlarm()">
+            <span id="fTogLbl" class="tog-label">Off</span>
+          </div>
+        </div>
+
+        <div id="formError" class="form-error"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMember()">
+          <i class="ti ti-check"></i> Add Member
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ ALARM LIST MODAL ═══════════════════ -->
+  <div id="alarmModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>🔔 Birthday Alarms</h2>
+      </div>
+      <button class="modal-close" onclick="closeAlarmsModal()">
+        <i class="ti ti-x"></i>
+      </button>
+      <div id="alarmListEl"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAlarmsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ HIDDEN FILE INPUTS ═══════════════════ -->
+  <input type="file" id="globalPhotoInput" accept="image/*" style="display:none" />
+  <input type="file" id="formPhotoInput"   accept="image/*" style="display:none" />
+
+  <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+  <script src="assets/js/members.js"></script>
+  <script src="assets/js/photos.js"></script>
+  <script src="assets/js/alarms.js"></script>
+  <script src="assets/js/search.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
