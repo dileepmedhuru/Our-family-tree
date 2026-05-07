@@ -1,13 +1,9 @@
 /**
- * photos.js
- * Handles photo uploads via FileReader and updates member data.
+ * photos.js  —  Photo upload handling
  */
 
-/* ─── State ────────────────────────────────────────────────────────── */
 let _pendingMemberId = null;
 let _pendingCallback = null;
-
-/* ─── Public API ───────────────────────────────────────────────────── */
 
 function triggerPhotoUpload(memberId, callback) {
   _pendingMemberId = memberId;
@@ -22,74 +18,60 @@ function triggerFormPhotoUpload(callback) {
 }
 
 function initPhotoInputs() {
-  const globalInput = document.getElementById('globalPhotoInput');
-  const formInput   = document.getElementById('formPhotoInput');
-
-  globalInput.addEventListener('change', (e) => {
-    readFile(e.target.files[0], (dataUrl) => {
-      if (_pendingCallback) _pendingCallback(_pendingMemberId, dataUrl);
-      _pendingMemberId = null;
-      _pendingCallback = null;
+  document.getElementById('globalPhotoInput').addEventListener('change', e => {
+    readFile(e.target.files[0], url => {
+      if (_pendingCallback) _pendingCallback(_pendingMemberId, url);
+      _pendingMemberId = _pendingCallback = null;
     });
-    globalInput.value = '';
+    e.target.value = '';
   });
-
-  formInput.addEventListener('change', (e) => {
-    readFile(e.target.files[0], (dataUrl) => {
-      if (_pendingCallback) _pendingCallback(null, dataUrl);
+  document.getElementById('formPhotoInput').addEventListener('change', e => {
+    readFile(e.target.files[0], url => {
+      if (_pendingCallback) _pendingCallback(null, url);
       _pendingCallback = null;
     });
-    formInput.value = '';
+    e.target.value = '';
   });
 }
 
-/* ─── Helpers ──────────────────────────────────────────────────────── */
-
-function readFile(file, callback) {
+function readFile(file, cb) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload  = (ev) => callback(ev.target.result);
-  reader.onerror = () => console.error('FileReader error');
-  reader.readAsDataURL(file);
-}
-
-function buildAvatarEl(member, size = 68) {
-  const wrap = document.createElement('div');
-  wrap.className = 'avatar';
-  wrap.style.width  = size + 'px';
-  wrap.style.height = size + 'px';
-
-  if (member.photo) {
-    const img = document.createElement('img');
-    img.src = member.photo;
-    img.alt = member.name;
-    wrap.appendChild(img);
-  } else {
-    const span = document.createElement('div');
-    span.className   = 'ini';
-    span.textContent = initials(member.name);
-    wrap.appendChild(span);
-  }
-
-  /* Camera overlay */
-  const cam = document.createElement('div');
-  cam.className = 'cam-hint';
-  cam.innerHTML = '<i class="ti ti-camera" style="font-size:13px"></i>';
-  cam.onclick = (e) => {
-    e.stopPropagation();
-    triggerPhotoUpload(member.id, (id, dataUrl) => {
-      setPhoto(id, dataUrl);
-      buildTree();
-      if (document.getElementById('profileModal').classList.contains('open')) {
-        openProfile(id);
-      }
-    });
-  };
-  wrap.appendChild(cam);
-
-  return wrap;
+  const r = new FileReader();
+  r.onload = ev => cb(ev.target.result);
+  r.readAsDataURL(file);
 }
 
 function initials(name) {
-  return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+  return (name || '?').split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function buildAvatarEl(member, size) {
+  size = size || 72;
+  const wrap = document.createElement('div');
+  wrap.className = 'avatar';
+  wrap.style.cssText = `width:${size}px;height:${size}px`;
+
+  if (member.photo) {
+    const img = document.createElement('img');
+    img.src = member.photo; img.alt = member.name;
+    wrap.appendChild(img);
+  } else {
+    const s = document.createElement('div');
+    s.className = 'ini'; s.textContent = initials(member.name);
+    wrap.appendChild(s);
+  }
+
+  const cam = document.createElement('div');
+  cam.className = 'cam-hint';
+  cam.innerHTML = '📷';
+  cam.onclick = e => {
+    e.stopPropagation();
+    triggerPhotoUpload(member.id, (id, url) => {
+      setPhoto(id, url);
+      // refresh whatever is visible
+      if (typeof refreshCurrentPage === 'function') refreshCurrentPage();
+    });
+  };
+  wrap.appendChild(cam);
+  return wrap;
 }

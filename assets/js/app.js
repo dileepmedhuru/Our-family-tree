@@ -1,352 +1,431 @@
 /**
- * app.js
- * Core application: tree rendering, card building, all modal logic.
- * Depends on: members.js, photos.js, alarms.js, search.js
+ * app.js  —  Multi-page family tree
+ *
+ * Pages:
+ *  splash   → animated welcome
+ *  gen1     → Yellaiah & Vanamma + their 7 children
+ *  family   → One child + spouse + their children
+ *  profile  → Full member detail (overlay)
  */
 
-/* ─── Global tree state ────────────────────────────────────────────── */
-const expandedIds = new Set([1]);  /* IDs that are currently expanded */
+/* ── Router state ─────────────────────────────────────────────────── */
+let currentPage   = 'splash';
+let currentFocusId = null;   // which child is open on "family" page
+let breadcrumb    = [];       // [{page, focusId, label}]
 
-/* ─── Bootstrap ────────────────────────────────────────────────────── */
+/* ── Bootstrap ────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  /* Firebase will call buildTree() and startAlarmChecker() once connected.
-     We only init UI helpers here. */
   initPhotoInputs();
-  initSearch();
-  initAddModal();
-  loadMembers();   /* triggers Firebase connection → calls buildTree on success */
+  loadMembers();   // calls onDataReady when done
 });
 
-/* ═══════════════════════════════════════════════════════════════════
-   TREE RENDERING
-═══════════════════════════════════════════════════════════════════ */
+function onDataReady() {
+  startAlarmChecker();
+  showPage('splash');
+  setTimeout(() => showPage('gen1'), 3000);  // auto-advance splash after 3s
+}
 
-function buildTree() {
-  const canvas = document.getElementById('treeCanvas');
-  canvas.innerHTML = '';
+function onDataUpdate() {
+  refreshCurrentPage();
+}
 
-  /* Group root members into couples.
-     A spouse belongs at the root level ONLY if:
-       1. They have no parentId (not a child of someone), AND
-       2. They have no children of their own at a deeper level
-          (meaning they are a true root-generation spouse, not
-           a spouse of a child who was added without a parentId) */
-  const roots  = getRoots();
-  const seen   = new Set();
-  const couples = [];
+/* ── Page Router ──────────────────────────────────────────────────── */
+function showPage(page, focusId) {
+  currentPage = page;
+  if (focusId !== undefined) currentFocusId = focusId;
 
-  /* First pass — collect all IDs that are spouses of non-root members */
-  const childLevelSpouseIds = new Set();
-  getAllMembers().forEach(m => {
-    if (m.parentId && m.spouseId) {
-      childLevelSpouseIds.add(m.spouseId);
-    }
-  });
+  // hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + page);
+  if (el) el.classList.add('active');
 
-  roots.forEach(m => {
-    if (seen.has(m.id)) return;
+  // render
+  switch (page) {
+    case 'splash': renderSplash();  break;
+    case 'gen1':   renderGen1();    break;
+    case 'family': renderFamily();  break;
+  }
 
-    /* Skip if this person is actually a spouse of a child-level member */
-    if (childLevelSpouseIds.has(m.id)) {
-      seen.add(m.id);
-      return;
-    }
+  updateNavBar();
+}
 
-    if (m.spouseId) {
-      const sp = getMember(m.spouseId);
-      /* Only pair at root if spouse is also root-level and not a child-level spouse */
-      if (sp && !sp.parentId && !childLevelSpouseIds.has(sp.id)) {
-        couples.push([m, sp]);
-        seen.add(m.id);
-        seen.add(sp.id);
-        return;
-      }
-    }
-    couples.push([m]);
-    seen.add(m.id);
-  });
+function refreshCurrentPage() {
+  showPage(currentPage, currentFocusId);
+}
 
-  /* Generation 0 — great-grandparents */
-  const rootSec = makeSectionLabel('Great-Grandparents');
-  canvas.appendChild(rootSec);
+/* ── Nav bar ──────────────────────────────────────────────────────── */
+function updateNavBar() {
+  const nb = document.getElementById('mainNav');
+  nb.style.display = currentPage === 'splash' ? 'none' : 'flex';
 
-  const rootRow = document.createElement('div');
-  rootRow.className = 'level';
-  couples.forEach(grp => rootRow.appendChild(makeCoupleEl(grp)));
-  canvas.appendChild(rootRow);
+  // update stats
+  const all = getAllMembers();
+  document.getElementById('statTotal').textContent  = all.length;
+  document.getElementById('statAlarms').textContent = all.filter(m => m.alarm).length;
 
-  /* Expand the primary of each couple (the one with children, else first listed) */
-  const expandedRoots = new Set();
-  couples.forEach(grp => {
-    /* Pick whichever partner actually has children, fallback to first */
-    const primary = grp.find(m => getChildren(m.id).length > 0) || grp[0];
-    if (expandedIds.has(primary.id) || (grp[1] && expandedIds.has(grp[1].id))) {
-      if (!expandedRoots.has(primary.id)) {
-        expandedRoots.add(primary.id);
-        renderChildren(primary.id, canvas, 0);
-      }
-    }
-  });
+  // breadcrumb
+  renderBreadcrumb();
+}
 
+function renderBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  if (!bc) return;
+  bc.innerHTML = '';
+
+  // home crumb
+  const home = document.createElement('button');
+  home.className = 'bc-btn'; home.textContent = '🏠 Home';
+  home.onclick = () => showPage('gen1');
+  bc.appendChild(home);
+
+  if (currentPage === 'family' && currentFocusId) {
+    const sep = document.createElement('span'); sep.className = 'bc-sep'; sep.textContent = '›';
+    bc.appendChild(sep);
+    const m = getMember(currentFocusId);
+    const label = document.createElement('span');
+    label.className = 'bc-current';
+    label.textContent = m ? m.name + "'s Family" : 'Family';
+    bc.appendChild(label);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PAGE 1 — SPLASH
+══════════════════════════════════════════════════════════════ */
+function renderSplash() {
+  // splash is pure CSS/HTML, nothing dynamic needed
+  // but check for birthdays
   checkBirthdayAlarms();
-  updateStats();
 }
 
-/* ─── Recursive children renderer ─────────────────────────────────── */
-const GEN_LABELS = ['Children', 'Grandchildren', 'Great-Grandchildren', 'Generation 4', 'Generation 5'];
+/* ══════════════════════════════════════════════════════════════
+   PAGE 2 — GEN1  (Yellaiah + Vanamma + children)
+══════════════════════════════════════════════════════════════ */
+function renderGen1() {
+  checkBirthdayAlarms();
+  const container = document.getElementById('gen1-body');
+  if (!container) return;
+  container.innerHTML = '';
 
-function renderChildren(parentId, container, depth) {
-  const children = getChildren(parentId);
-  if (!children.length) return;
+  // patriarch couple
+  const root = getMember(1);  // Yellaiah
+  const spouse = root ? getMember(root.spouseId) : null;
 
-  container.appendChild(makeVConnector());
-  container.appendChild(makeSectionLabel(GEN_LABELS[depth] || `Generation ${depth + 2}`));
+  // couple row
+  const coupleWrap = document.createElement('div');
+  coupleWrap.className = 'gen1-couple';
 
-  const hWrap = document.createElement('div');
-  hWrap.className = 'connector-h-wrap';
+  coupleWrap.appendChild(buildGen1Card(root));
+  if (spouse) {
+    const heart = document.createElement('div');
+    heart.className = 'heart-divider';
+    heart.innerHTML = '<span>♥</span>';
+    coupleWrap.appendChild(heart);
+    coupleWrap.appendChild(buildGen1Card(spouse));
+  }
+  container.appendChild(coupleWrap);
 
-  const sibRow = document.createElement('div');
-  sibRow.className = 'siblings-row';
-  if (children.length === 1) sibRow.style.cssText = 'display:flex;gap:14px;justify-content:center;';
+  // connector
+  const conn = document.createElement('div');
+  conn.className = 'gen1-connector';
+  conn.innerHTML = '<div class="gen1-vline"></div><div class="gen1-label">Children</div>';
+  container.appendChild(conn);
 
-  /* Track which IDs are already rendered as a spouse beside their partner */
-  const renderedAsSpouse = new Set();
+  // children grid
+  const children = getChildren(1).sort((a,b) => (a.dob||'').localeCompare(b.dob||''));
+  const grid = document.createElement('div');
+  grid.className = 'children-grid';
 
   children.forEach(child => {
-    /* Skip if already shown beside their partner */
-    if (renderedAsSpouse.has(child.id)) return;
-
-    const col = document.createElement('div');
-    col.className = 'node-col';
-    col.appendChild(makeVConnectorSmall());
-
-    const cr = document.createElement('div');
-    cr.className = 'couple-row';
-    cr.appendChild(makeCard(child));
-
-    if (child.spouseId) {
-      const sp = getMember(child.spouseId);
-      if (sp) {
-        cr.appendChild(makeHeartBadge());
-        cr.appendChild(makeCard(sp));
-        renderedAsSpouse.add(sp.id); /* mark spouse so we don't render them again */
-      }
-    }
-    col.appendChild(cr);
-
-    /* Expand children of this child OR their spouse (whichever has kids) */
-    const expandTarget = expandedIds.has(child.id) ? child.id
-      : (child.spouseId && expandedIds.has(child.spouseId)) ? child.spouseId
-      : null;
-
-    if (expandTarget) {
-      const sub = document.createElement('div');
-      sub.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
-      /* Collect children from both partners */
-      const kids = [
-        ...getChildren(child.id),
-        ...(child.spouseId ? getChildren(child.spouseId) : [])
-      ];
-      if (kids.length) renderChildrenInto(child.id, sub, depth + 1);
-      col.appendChild(sub);
-    }
-
-    sibRow.appendChild(col);
+    grid.appendChild(buildChildCard(child));
   });
 
-  hWrap.appendChild(sibRow);
-  container.appendChild(hWrap);
+  container.appendChild(grid);
 }
 
-function renderChildrenInto(parentId, container, depth) {
-  const children = getChildren(parentId);
-  if (!children.length) return;
-
-  container.appendChild(makeVConnector());
-  container.appendChild(makeSectionLabel(GEN_LABELS[depth] || `Generation ${depth + 2}`));
-
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;gap:14px;justify-content:center;';
-
-  const renderedAsSpouse2 = new Set();
-
-  children.forEach(child => {
-    if (renderedAsSpouse2.has(child.id)) return;
-
-    const col = document.createElement('div');
-    col.className = 'node-col';
-    col.appendChild(makeVConnectorSmall());
-
-    const cr = document.createElement('div');
-    cr.className = 'couple-row';
-    cr.appendChild(makeCard(child));
-
-    if (child.spouseId) {
-      const sp = getMember(child.spouseId);
-      if (sp) {
-        cr.appendChild(makeHeartBadge());
-        cr.appendChild(makeCard(sp));
-        renderedAsSpouse2.add(sp.id);
-      }
-    }
-    col.appendChild(cr);
-
-    if (expandedIds.has(child.id) || (child.spouseId && expandedIds.has(child.spouseId))) {
-      const sub = document.createElement('div');
-      sub.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
-      renderChildrenInto(child.id, sub, depth + 1);
-      col.appendChild(sub);
-    }
-    wrap.appendChild(col);
-  });
-
-  container.appendChild(wrap);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   CARD BUILDER
-═══════════════════════════════════════════════════════════════════ */
-
-function makeCard(m) {
+function buildGen1Card(m) {
+  if (!m) return document.createElement('div');
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'patriarch-card';
+  card.onclick = () => openProfile(m.id);
 
-  const d = daysUntilBirthday(m.dob);
-  if (d === 0 && m.alarm)  card.classList.add('bday-ring');
-  if (expandedIds.has(m.id)) card.classList.add('selected');
+  const av = buildAvatarEl(m, 90);
+  card.appendChild(av);
 
-  /* Birthday dot */
-  if (m.alarm && d !== null && d <= 7) {
-    const dot = document.createElement('div');
-    dot.className = 'bday-dot';
-    dot.title = d === 0 ? 'Birthday today!' : `Birthday in ${d} days`;
-    card.appendChild(dot);
-  }
+  const name = document.createElement('div');
+  name.className = 'pc-name'; name.textContent = m.name;
+  card.appendChild(name);
 
-  /* Bell button */
-  const bell = document.createElement('button');
-  bell.className = 'bell-btn' + (m.alarm ? ' on' : '');
-  bell.innerHTML = '<i class="ti ti-bell" style="font-size:13px"></i>';
-  bell.title = m.alarm ? 'Alarm on — click to disable' : 'Click to set birthday alarm';
-  bell.setAttribute('aria-label', 'Toggle birthday alarm for ' + m.name);
-  bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); buildTree(); };
-  card.appendChild(bell);
-
-  /* Avatar */
-  card.appendChild(buildAvatarEl(m, 68));
-
-  /* Name */
-  const nm = document.createElement('div');
-  nm.className = 'card-name';
-  nm.textContent = m.name;
-  card.appendChild(nm);
-
-  /* DOB */
   if (m.dob) {
-    const db = document.createElement('div');
-    db.className = 'card-dob';
-    db.textContent = formatDob(m.dob);
-    card.appendChild(db);
+    const dob = document.createElement('div');
+    dob.className = 'pc-dob'; dob.textContent = formatDob(m.dob);
+    card.appendChild(dob);
   }
-
-  /* Note / occupation */
   if (m.note) {
-    const nt = document.createElement('div');
-    nt.className = 'card-note';
-    nt.textContent = m.note;
-    card.appendChild(nt);
+    const note = document.createElement('div');
+    note.className = 'pc-note'; note.textContent = m.note;
+    card.appendChild(note);
   }
 
-  /* Expand hint */
-  const childCount = getChildren(m.id).length;
-  if (childCount > 0 || !m.parentId) {
-    const ex = document.createElement('div');
-    ex.className = 'card-expand';
-    ex.textContent = expandedIds.has(m.id)
-      ? `▲ collapse (${childCount})`
-      : `▼ tap to expand${childCount ? ` (${childCount})` : ''}`;
-    card.appendChild(ex);
-  }
-
-  /* Click = expand/collapse, double-click = profile */
-  card.addEventListener('click', () => {
-    if (expandedIds.has(m.id)) expandedIds.delete(m.id);
-    else expandedIds.add(m.id);
-    buildTree();
-  });
-  card.addEventListener('dblclick', e => { e.stopPropagation(); openProfile(m.id); });
+  // bell
+  const bell = document.createElement('button');
+  bell.className = 'card-bell ' + (m.alarm ? 'on' : '');
+  bell.innerHTML = '🔔';
+  bell.title = m.alarm ? 'Alarm on' : 'Set alarm';
+  bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); refreshCurrentPage(); };
+  card.appendChild(bell);
 
   return card;
 }
 
-/* ─── DOM helpers ──────────────────────────────────────────────────── */
-function makeCoupleEl(grp) {
-  const w = document.createElement('div');
-  w.className = 'couple-row';
-  w.appendChild(makeCard(grp[0]));
-  if (grp[1]) { w.appendChild(makeHeartBadge()); w.appendChild(makeCard(grp[1])); }
-  return w;
-}
-function makeHeartBadge() {
-  const h = document.createElement('div');
-  h.className = 'heart-badge';
-  h.textContent = '♥';
-  return h;
-}
-function makeSectionLabel(text) {
-  const l = document.createElement('div');
-  l.className = 'section-label';
-  l.textContent = text;
-  return l;
-}
-function makeVConnector() {
-  const v = document.createElement('div');
-  v.className = 'connector-v';
-  return v;
-}
-function makeVConnectorSmall() {
-  const v = document.createElement('div');
-  v.className = 'sibling-top';
-  return v;
+function buildChildCard(m) {
+  const childCount = getChildren(m.id).length;
+  const spouse = m.spouseId ? getMember(m.spouseId) : null;
+
+  const card = document.createElement('div');
+  card.className = 'child-card';
+  card.onclick = () => showPage('family', m.id);
+
+  // photo
+  const av = buildAvatarEl(m, 80);
+  card.appendChild(av);
+
+  const name = document.createElement('div');
+  name.className = 'cc-name'; name.textContent = m.name;
+  card.appendChild(name);
+
+  if (m.dob) {
+    const dob = document.createElement('div');
+    dob.className = 'cc-dob'; dob.textContent = formatDob(m.dob);
+    card.appendChild(dob);
+  }
+
+  if (spouse) {
+    const sw = document.createElement('div');
+    sw.className = 'cc-spouse';
+    sw.innerHTML = `<span class="heart-tiny">♥</span> ${spouse.name}`;
+    card.appendChild(sw);
+  }
+
+  const footer = document.createElement('div');
+  footer.className = 'cc-footer';
+  footer.innerHTML = `<span class="cc-children">${childCount} child${childCount !== 1 ? 'ren' : ''}</span><span class="cc-arrow">View Family →</span>`;
+  card.appendChild(footer);
+
+  // alarm dot
+  const d = daysUntilBirthday(m.dob);
+  if (m.alarm && d !== null && d <= 7) {
+    const dot = document.createElement('div');
+    dot.className = 'bday-dot'; dot.title = d === 0 ? 'Birthday today!' : `Birthday in ${d} days`;
+    card.appendChild(dot);
+  }
+
+  return card;
 }
 
-function updateStats() {
-  const all = getAllMembers();
-  document.getElementById('statTotal').textContent  = all.length;
-  document.getElementById('statAlarms').textContent = all.filter(m => m.alarm).length;
+/* ══════════════════════════════════════════════════════════════
+   PAGE 3 — FAMILY  (one child + spouse + their children)
+══════════════════════════════════════════════════════════════ */
+function renderFamily() {
+  checkBirthdayAlarms();
+  const container = document.getElementById('family-body');
+  if (!container || !currentFocusId) return;
+  container.innerHTML = '';
+
+  const person = getMember(currentFocusId);
+  if (!person) return;
+
+  const spouse   = person.spouseId ? getMember(person.spouseId) : null;
+  const children = getChildren(person.id);
+
+  // ── Couple header ─────────────────────────────
+  const coupleSection = document.createElement('div');
+  coupleSection.className = 'family-couple-section';
+
+  // parent context
+  if (person.parentId) {
+    const parent = getMember(person.parentId);
+    if (parent) {
+      const ctx = document.createElement('div');
+      ctx.className = 'parent-context';
+      ctx.innerHTML = `<span class="ctx-label">Child of</span> <button class="ctx-link" onclick="showPage('gen1')">${parent.name} &amp; ${getMember(parent.spouseId)?.name || ''}</button>`;
+      coupleSection.appendChild(ctx);
+    }
+  }
+
+  const coupleRow = document.createElement('div');
+  coupleRow.className = 'family-couple-row';
+  coupleRow.appendChild(buildFamilyCard(person, true));
+
+  if (spouse) {
+    const heartDiv = document.createElement('div');
+    heartDiv.className = 'family-heart';
+    heartDiv.innerHTML = `<div class="heart-circle">♥</div><div class="married-since">Married</div>`;
+    coupleRow.appendChild(heartDiv);
+    coupleRow.appendChild(buildFamilyCard(spouse, false));
+  } else {
+    const addSpouseBtn = document.createElement('div');
+    addSpouseBtn.className = 'add-spouse-btn';
+    addSpouseBtn.innerHTML = '<div class="add-spouse-icon">+</div><div class="add-spouse-text">Add Spouse</div>';
+    addSpouseBtn.onclick = () => openAddModal('spouse', person.id);
+    coupleRow.appendChild(addSpouseBtn);
+  }
+
+  coupleSection.appendChild(coupleRow);
+  container.appendChild(coupleSection);
+
+  // ── Children ──────────────────────────────────
+  if (children.length > 0) {
+    const connEl = document.createElement('div');
+    connEl.className = 'family-connector';
+    connEl.innerHTML = '<div class="fam-vline"></div><div class="fam-children-label">Their Children</div>';
+    container.appendChild(connEl);
+
+    const childGrid = document.createElement('div');
+    childGrid.className = 'family-children-grid';
+
+    children.forEach(child => {
+      childGrid.appendChild(buildChildFamilyCard(child));
+    });
+    container.appendChild(childGrid);
+  } else {
+    const noKids = document.createElement('div');
+    noKids.className = 'no-children-msg';
+    noKids.innerHTML = `<div class="no-kids-icon">🌱</div><div>No children added yet</div>`;
+    container.appendChild(noKids);
+  }
+
+  // ── Add child button ───────────────────────────
+  const addBtn = document.createElement('button');
+  addBtn.className = 'fab-add';
+  addBtn.innerHTML = '+ Add Child';
+  addBtn.onclick = () => openAddModal('child', person.id);
+  container.appendChild(addBtn);
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   PROFILE MODAL  — view + edit modes
-═══════════════════════════════════════════════════════════════════ */
+function buildFamilyCard(m, isPrimary) {
+  const card = document.createElement('div');
+  card.className = 'family-member-card ' + (isPrimary ? 'primary' : 'spouse');
+  card.onclick = () => openProfile(m.id);
 
+  const role = document.createElement('div');
+  role.className = 'fmc-role';
+  role.textContent = isPrimary
+    ? (m.gender === 'F' ? '👩 Wife' : '👨 Husband')
+    : (m.gender === 'F' ? '👩 Wife' : '👨 Husband');
+  card.appendChild(role);
+
+  const av = buildAvatarEl(m, 96);
+  card.appendChild(av);
+
+  const name = document.createElement('div');
+  name.className = 'fmc-name'; name.textContent = m.name;
+  card.appendChild(name);
+
+  if (m.dob) {
+    const dob = document.createElement('div');
+    dob.className = 'fmc-dob'; dob.textContent = formatDob(m.dob);
+    card.appendChild(dob);
+
+    const age = ageToday(m.dob);
+    if (age !== null) {
+      const ageEl = document.createElement('div');
+      ageEl.className = 'fmc-age'; ageEl.textContent = `Age ${age}`;
+      card.appendChild(ageEl);
+    }
+  }
+
+  if (m.note) {
+    const note = document.createElement('div');
+    note.className = 'fmc-note'; note.textContent = m.note;
+    card.appendChild(note);
+  }
+
+  const bell = document.createElement('button');
+  bell.className = 'card-bell ' + (m.alarm ? 'on' : '');
+  bell.innerHTML = '🔔'; bell.title = m.alarm ? 'Alarm on' : 'Set alarm';
+  bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); refreshCurrentPage(); };
+  card.appendChild(bell);
+
+  const d = daysUntilBirthday(m.dob);
+  if (m.alarm && d !== null && d <= 7) {
+    const dot = document.createElement('div');
+    dot.className = 'bday-dot';
+    card.appendChild(dot);
+  }
+
+  return card;
+}
+
+function buildChildFamilyCard(m) {
+  const grandkids = getChildren(m.id);
+  const spouse = m.spouseId ? getMember(m.spouseId) : null;
+
+  const card = document.createElement('div');
+  card.className = 'child-fam-card';
+
+  const av = buildAvatarEl(m, 68);
+  card.appendChild(av);
+
+  const name = document.createElement('div');
+  name.className = 'cfc-name'; name.textContent = m.name;
+  card.appendChild(name);
+
+  if (m.dob) {
+    const dob = document.createElement('div');
+    dob.className = 'cfc-dob'; dob.textContent = formatDob(m.dob);
+    card.appendChild(dob);
+  }
+
+  if (spouse) {
+    const sw = document.createElement('div');
+    sw.className = 'cfc-spouse'; sw.innerHTML = `♥ ${spouse.name}`;
+    card.appendChild(sw);
+  }
+
+  if (grandkids.length > 0) {
+    const gk = document.createElement('div');
+    gk.className = 'cfc-kids'; gk.textContent = `${grandkids.length} child${grandkids.length !== 1 ? 'ren' : ''}`;
+    card.appendChild(gk);
+
+    const btn = document.createElement('button');
+    btn.className = 'cfc-view-btn';
+    btn.textContent = 'View Family →';
+    btn.onclick = e => { e.stopPropagation(); showPage('family', m.id); };
+    card.appendChild(btn);
+  }
+
+  card.onclick = () => openProfile(m.id);
+
+  const bell = document.createElement('button');
+  bell.className = 'card-bell ' + (m.alarm ? 'on' : '');
+  bell.innerHTML = '🔔'; bell.title = m.alarm ? 'Alarm on' : 'Set alarm';
+  bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); refreshCurrentPage(); };
+  card.appendChild(bell);
+
+  return card;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PROFILE OVERLAY
+══════════════════════════════════════════════════════════════ */
 let _profId   = null;
-let _profEdit = false;   /* true = edit mode */
+let _profEdit = false;
 
 function openProfile(id) {
-  const m = getMember(id);
-  if (!m) return;
-  _profId   = id;
-  _profEdit = false;
-
+  const m = getMember(id); if (!m) return;
+  _profId = id; _profEdit = false;
   renderProfileView(m);
   document.getElementById('profileModal').classList.add('open');
 }
 
-/* ─── VIEW mode ────────────────────────────────────────────────────── */
 function renderProfileView(m) {
   _profEdit = false;
-
-  /* Avatar */
   const av = document.getElementById('pAvatar');
   av.innerHTML = '';
   if (m.photo) {
-    const img = document.createElement('img');
-    img.src = m.photo;
-    av.appendChild(img);
-  } else {
-    av.textContent = initials(m.name);
-  }
+    const img = document.createElement('img'); img.src = m.photo; av.appendChild(img);
+  } else { av.textContent = initials(m.name); }
 
   document.getElementById('pName').textContent = m.name;
   document.getElementById('pNote').textContent = m.note || '';
@@ -354,277 +433,161 @@ function renderProfileView(m) {
   const sp  = m.spouseId ? getMember(m.spouseId) : null;
   const ch  = getChildren(m.id);
   const age = ageToday(m.dob);
-  const meta = [
+  document.getElementById('pMeta').textContent = [
     m.gender === 'M' ? 'Male' : m.gender === 'F' ? 'Female' : '',
     age !== null ? `Age ${age}` : '',
-    ch.length ? ch.length + ' child' + (ch.length > 1 ? 'ren' : '') : ''
+    ch.length ? `${ch.length} child${ch.length > 1 ? 'ren' : ''}` : ''
   ].filter(Boolean).join(' · ');
-  document.getElementById('pMeta').textContent = meta;
 
-  /* Spouse row — “Husband of / Wife of / Spouse of” */
-  const spouseRow   = document.getElementById('pSpouseRow');
-  const spouseLabel = document.getElementById('pSpouseLabel');
-  const spouseName  = document.getElementById('pSpouseName');
+  const spouseRow  = document.getElementById('pSpouseRow');
+  const spouseLbl  = document.getElementById('pSpouseLabel');
+  const spouseName = document.getElementById('pSpouseName');
   if (sp) {
-    const label = m.gender === 'F' ? 'Wife of'
-                : m.gender === 'M' ? 'Husband of'
-                : 'Spouse of';
-    spouseLabel.textContent = label;
-    spouseName.textContent  = sp.name;
+    spouseLbl.textContent  = m.gender === 'F' ? 'Wife of' : m.gender === 'M' ? 'Husband of' : 'Spouse of';
+    spouseName.textContent = sp.name;
     spouseRow.style.display = '';
-  } else {
-    spouseRow.style.display = 'none';
-  }
+  } else { spouseRow.style.display = 'none'; }
 
-  document.getElementById('pDob').textContent  = m.dob ? 'Born: ' + formatDob(m.dob) : 'No date of birth set';
+  document.getElementById('pDob').textContent = m.dob ? 'Born: ' + formatDob(m.dob) : 'No date of birth';
   const d = daysUntilBirthday(m.dob);
   document.getElementById('pDays').textContent = d === null ? ''
-    : d === 0 ? '🎂 Birthday Today!'
-    : d === 1 ? '🔔 Birthday Tomorrow!'
-    : `🔔 Birthday in ${d} days`;
+    : d === 0 ? '🎂 Birthday Today!' : d === 1 ? '🔔 Birthday Tomorrow!' : `🔔 Birthday in ${d} days`;
 
-  syncProfileAlarmToggle(m.alarm);
+  syncProfAlarmToggle(m.alarm);
 
-  /* Show view sections, hide edit form */
-  document.getElementById('profViewBody').style.display  = '';
-  document.getElementById('profEditForm').style.display  = 'none';
+  document.getElementById('profViewBody').style.display   = '';
+  document.getElementById('profEditForm').style.display   = 'none';
   document.getElementById('profViewActions').style.display = '';
   document.getElementById('profEditActions').style.display = 'none';
+  document.getElementById('editSuccess').style.display    = 'none';
 }
 
-/* ─── EDIT mode ────────────────────────────────────────────────────── */
 function enterEditMode() {
-  const m = getMember(_profId);
-  if (!m) return;
+  const m = getMember(_profId); if (!m) return;
   _profEdit = true;
-
-  /* Populate edit fields */
   document.getElementById('eName').value   = m.name   || '';
   document.getElementById('eDob').value    = m.dob    || '';
   document.getElementById('eNote').value   = m.note   || '';
   document.getElementById('eGender').value = m.gender || '';
-
-  /* Show spouse in edit mode (read-only) */
   const sp2 = m.spouseId ? getMember(m.spouseId) : null;
-  const eSpouseRow = document.getElementById('eSpouseRow');
+  const esr = document.getElementById('eSpouseRow');
   if (sp2) {
-    const lbl = m.gender === 'F' ? 'Wife of' : m.gender === 'M' ? 'Husband of' : 'Spouse of';
-    document.getElementById('eSpouseLabel').textContent = lbl;
+    document.getElementById('eSpouseLabel').textContent = m.gender === 'F' ? 'Wife of' : 'Husband of';
     document.getElementById('eSpouseName').textContent  = sp2.name;
-    eSpouseRow.style.display = '';
-  } else {
-    eSpouseRow.style.display = 'none';
-  }
-
-  /* Hide view, show edit */
-  document.getElementById('profViewBody').style.display  = 'none';
-  document.getElementById('profEditForm').style.display  = '';
+    esr.style.display = '';
+  } else esr.style.display = 'none';
+  document.getElementById('profViewBody').style.display    = 'none';
+  document.getElementById('profEditForm').style.display    = '';
   document.getElementById('profViewActions').style.display = 'none';
   document.getElementById('profEditActions').style.display = '';
-
-  /* Focus name field */
   setTimeout(() => document.getElementById('eName').focus(), 50);
 }
 
-function cancelEdit() {
-  const m = getMember(_profId);
-  if (m) renderProfileView(m);
-}
+function cancelEdit() { const m = getMember(_profId); if (m) renderProfileView(m); }
 
 function saveEdit() {
   const name = document.getElementById('eName').value.trim();
-  if (!name) {
-    showEditError('Name cannot be empty.');
-    return;
-  }
-
-  updateMember(_profId, {
-    name:   name,
-    dob:    document.getElementById('eDob').value   || '',
-    note:   document.getElementById('eNote').value.trim(),
-    gender: document.getElementById('eGender').value
-  });
-
-  /* Re-render everything */
-  buildTree();
-  const updated = getMember(_profId);
-  renderProfileView(updated);
-
-  showEditSuccess('Changes saved!');
+  if (!name) { showEditError('Name cannot be empty.'); return; }
+  updateMember(_profId, { name, dob: document.getElementById('eDob').value, note: document.getElementById('eNote').value.trim(), gender: document.getElementById('eGender').value });
+  refreshCurrentPage();
+  renderProfileView(getMember(_profId));
+  const s = document.getElementById('editSuccess');
+  s.textContent = '✓ Saved!'; s.style.display = 'block';
+  setTimeout(() => s.style.display = 'none', 2000);
 }
 
-function showEditError(msg) {
-  const el = document.getElementById('editError');
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
-}
-
-function showEditSuccess(msg) {
-  const el = document.getElementById('editSuccess');
-  el.textContent = '✓ ' + msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 2500);
-}
-
-/* ─── Shared profile helpers ───────────────────────────────────────── */
-function closeProfile() {
-  document.getElementById('profileModal').classList.remove('open');
-}
-
-function syncProfileAlarmToggle(state) {
-  document.getElementById('pToggle').className = 'tog' + (state ? ' on' : '');
+function closeProfile() { document.getElementById('profileModal').classList.remove('open'); }
+function syncProfAlarmToggle(state) {
+  document.getElementById('pToggle').className = 'tog ' + (state ? 'on' : '');
   document.getElementById('pTogLbl').textContent = 'Alarm ' + (state ? 'on' : 'off');
 }
-
 function flipProfAlarm() {
-  const newState = toggleAlarm(_profId);
-  syncProfileAlarmToggle(newState);
-  buildTree();
+  const v = toggleAlarm(_profId); syncProfAlarmToggle(v); refreshCurrentPage();
 }
-
 function triggerProfPhoto() {
-  triggerPhotoUpload(_profId, (id, dataUrl) => {
-    setPhoto(id, dataUrl);
-    buildTree();
-    openProfile(id);
+  triggerPhotoUpload(_profId, (id, url) => {
+    setPhoto(id, url); refreshCurrentPage(); openProfile(id);
   });
 }
-
-/* ═══════════════════════════════════════════════════════════════════
-   ADD MEMBER MODAL
-═══════════════════════════════════════════════════════════════════ */
-
-let _formAlarm  = false;
-let _formPhoto  = null;
-
-function initAddModal() {
-  document.getElementById('fRel').addEventListener('change', onRelChange);
+function showEditError(msg) {
+  const el = document.getElementById('editError');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+function confirmDeleteMember() {
+  const m = getMember(_profId); if (!m) return;
+  if (!confirm(`Remove "${m.name}"? This cannot be undone.`)) return;
+  deleteMember(_profId); closeProfile(); refreshCurrentPage();
 }
 
-function openAddModal() {
+/* ══════════════════════════════════════════════════════════════
+   ADD MEMBER MODAL
+══════════════════════════════════════════════════════════════ */
+let _formAlarm = false;
+let _formPhoto = null;
+let _addContext = null;  // {type:'child'|'spouse', parentId}
+
+function openAddModal(type, parentId) {
+  _addContext = type ? { type, parentId } : null;
+  _formAlarm = false; _formPhoto = null;
+
   ['fName','fDob','fNote'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fGender').value = '';
-  document.getElementById('fRel').value    = 'child';
-  _formAlarm = false;
-  _formPhoto = null;
   document.getElementById('fToggle').className = 'tog';
   document.getElementById('fTogLbl').textContent = 'Off';
   document.getElementById('prevImg').style.display  = 'none';
   document.getElementById('dropHint').style.display = 'block';
+  document.getElementById('formError').style.display = 'none';
 
-  populateMemberDropdown('child');
-  onRelChange();
+  // Set relationship type
+  if (_addContext) {
+    document.getElementById('fRel').value = _addContext.type;
+    document.getElementById('parentRow').style.display = 'flex';
+    document.getElementById('parentLbl').textContent = _addContext.type === 'spouse' ? 'Spouse of' : 'Child of';
+    const sel = document.getElementById('fParent');
+    sel.innerHTML = '';
+    const m = getMember(_addContext.parentId);
+    if (m) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name; sel.appendChild(o); }
+  } else {
+    document.getElementById('fRel').value = 'child';
+    populateMemberDropdown('child');
+    onRelChange();
+  }
+
   document.getElementById('addModal').classList.add('open');
 }
 
-function closeAddModal() {
-  document.getElementById('addModal').classList.remove('open');
+function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+
+function onRelChange() {
+  const rt = document.getElementById('fRel').value;
+  document.getElementById('parentRow').style.display = rt === 'root' ? 'none' : 'flex';
+  document.getElementById('parentLbl').textContent = rt === 'spouse' ? 'Spouse of' : 'Child of';
+  if (rt !== 'root') populateMemberDropdown(rt);
 }
 
-/**
- * Fill the parent/spouse dropdown based on relationship type.
- * For 'spouse' — only show members who don't already have a spouse.
- * For 'child'  — show all members.
- */
 function populateMemberDropdown(rt) {
   const sel = document.getElementById('fParent');
   sel.innerHTML = '';
-  const all = getAllMembers();
-
-  const list = rt === 'spouse'
-    ? all.filter(m => !m.spouseId)   /* only singles */
-    : all;
-
-  if (list.length === 0) {
-    const o = document.createElement('option');
-    o.disabled = true;
-    o.textContent = rt === 'spouse'
-      ? '— No single members found —'
-      : '— No members yet —';
-    sel.appendChild(o);
-    return;
-  }
-
+  const list = rt === 'spouse' ? getAllMembers().filter(m => !m.spouseId) : getAllMembers();
   list.forEach(m => {
     const o = document.createElement('option');
-    o.value = m.id;
-    o.textContent = m.name + (m.dob ? '  (' + formatDob(m.dob) + ')' : '');
+    o.value = m.id; o.textContent = m.name + (m.dob ? '  (' + formatDob(m.dob) + ')' : '');
     sel.appendChild(o);
   });
 }
 
-function onRelChange() {
-  const rt = document.getElementById('fRel').value;
-
-  /* Hide/show the member picker row */
-  document.getElementById('parentRow').style.display = rt === 'root' ? 'none' : 'flex';
-
-  /* Update label */
-  document.getElementById('parentLbl').textContent =
-    rt === 'spouse' ? 'Spouse of' : 'Child of';
-
-  /* Repopulate dropdown for the chosen relationship */
-  if (rt !== 'root') populateMemberDropdown(rt);
-
-  /* Show/hide the spouse-preview card */
-  updateSpousePreview();
-}
-
-/** Show a small preview card under the dropdown when "Spouse of" is selected */
-function updateSpousePreview() {
-  const rt      = document.getElementById('fRel').value;
-  const preview = document.getElementById('spousePreview');
-  if (!preview) return;
-
-  if (rt !== 'spouse') {
-    preview.style.display = 'none';
-    return;
-  }
-
-  const sel = document.getElementById('fParent');
-  const id  = parseInt(sel.value, 10);
-  const m   = getMember(id);
-  if (!m) { preview.style.display = 'none'; return; }
-
-  const age = m.dob ? ageToday(m.dob) : null;
-
-  const newGender = document.getElementById('fGender').value;
-  let spouseLabel = 'Spouse of';
-  if (newGender === 'M')      spouseLabel = 'Husband of';
-  else if (newGender === 'F') spouseLabel = 'Wife of';
-  else if (m.gender === 'M')  spouseLabel = 'Wife of';
-  else if (m.gender === 'F')  spouseLabel = 'Husband of';
-
-  const avHtml = m.photo
-    ? '<img src="' + m.photo + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
-    : initials(m.name);
-
-  const dobStr  = m.dob  ? formatDob(m.dob) : '';
-  const ageStr  = age !== null ? '  ·  Age ' + age : '';
-  const noteStr = m.note ? '  ·  ' + m.note : '';
-
-  preview.style.display = 'flex';
-  preview.innerHTML =
-    '<div class="sp-av">' + avHtml + '</div>' +
-    '<div>' +
-      '<div class="sp-name">' + spouseLabel + ' <strong>' + m.name + '</strong></div>' +
-      '<div class="sp-meta">' + dobStr + ageStr + noteStr + '</div>' +
-    '</div>';
-}
-
 function flipFormAlarm() {
   _formAlarm = !_formAlarm;
-  document.getElementById('fToggle').className = 'tog' + (_formAlarm ? ' on' : '');
-  document.getElementById('fTogLbl').textContent = _formAlarm ? 'On — will remind on birthday' : 'Off';
+  document.getElementById('fToggle').className = 'tog ' + (_formAlarm ? 'on' : '');
+  document.getElementById('fTogLbl').textContent = _formAlarm ? 'On' : 'Off';
 }
 
 function openFormPhotoUpload() {
-  triggerFormPhotoUpload((_, dataUrl) => {
-    _formPhoto = dataUrl;
+  triggerFormPhotoUpload((_, url) => {
+    _formPhoto = url;
     const img = document.getElementById('prevImg');
-    img.src = _formPhoto;
-    img.style.display = 'block';
+    img.src = url; img.style.display = 'block';
     document.getElementById('dropHint').style.display = 'none';
   });
 }
@@ -633,54 +596,98 @@ function saveMember() {
   const name = document.getElementById('fName').value.trim();
   if (!name) { showFormError('Please enter a full name.'); return; }
 
-  const rt       = document.getElementById('fRel').value;
+  const rt = document.getElementById('fRel').value;
   const parentId = rt === 'root' ? null : parseInt(document.getElementById('fParent').value, 10);
 
-  const newMember = addMember({
-    name,
-    dob:      document.getElementById('fDob').value,
-    gender:   document.getElementById('fGender').value,
-    note:     document.getElementById('fNote').value.trim(),
+  const newM = addMember({
+    name, dob: document.getElementById('fDob').value,
+    gender: document.getElementById('fGender').value,
+    note:   document.getElementById('fNote').value.trim(),
     parentId: rt === 'child' ? parentId : null,
-    photo:    _formPhoto,
-    alarm:    _formAlarm
+    photo: _formPhoto, alarm: _formAlarm
   });
 
   if (rt === 'spouse' && parentId) {
-    linkSpouses(parentId, newMember.id);
-    /* Give the spouse the same parentId as their partner so they
-       appear at the correct generation, not as a stray root card */
+    linkSpouses(parentId, newM.id);
     const partner = getMember(parentId);
-    if (partner && partner.parentId) {
-      updateMember(newMember.id, { parentId: partner.parentId });
-    }
-    expandedIds.add(parentId);
-    if (partner && partner.parentId) expandedIds.add(partner.parentId);
+    if (partner && partner.parentId) updateMember(newM.id, { parentId: partner.parentId });
   }
 
-  if (newMember.parentId) expandedIds.add(newMember.parentId);
-
-  closeAddModal();
-  buildTree();
+  closeAddModal(); refreshCurrentPage();
 }
 
 function showFormError(msg) {
   const el = document.getElementById('formError');
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   DELETE MEMBER
-═══════════════════════════════════════════════════════════════════ */
+/* ── Search ───────────────────────────────────────────────────────── */
+let _searchT = null;
 
-function confirmDeleteMember() {
-  const m = getMember(_profId);
-  if (!m) return;
-  if (!confirm(`Remove "${m.name}" from the family tree? This cannot be undone.`)) return;
-  deleteMember(_profId);
-  closeProfile();
-  expandedIds.delete(_profId);
-  buildTree();
+function initSearchEvents() {
+  const input = document.getElementById('searchInput');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    clearTimeout(_searchT); _searchT = setTimeout(runSearch, 120);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideSearchDrop();
+    if (e.key === 'Enter') { const f = document.querySelector('.search-result-item'); if (f) f.click(); }
+  });
+  document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) hideSearchDrop(); });
 }
+
+function runSearch() {
+  const q   = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const box = document.getElementById('searchResults');
+  if (!q) { hideSearchDrop(); return; }
+  const res = getAllMembers().filter(m => m.name.toLowerCase().includes(q) || (m.note||'').toLowerCase().includes(q));
+  if (!res.length) { hideSearchDrop(); return; }
+  box.innerHTML = '';
+  res.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+    const av = document.createElement('div');
+    av.className = 'sri-av';
+    if (m.photo) { const img = document.createElement('img'); img.src = m.photo; av.appendChild(img); }
+    else av.textContent = initials(m.name);
+    const txt = document.createElement('div');
+    txt.innerHTML = `<div class="sri-name">${m.name}</div><div class="sri-dob">${formatDob(m.dob)}</div>`;
+    item.appendChild(av); item.appendChild(txt);
+    item.onclick = () => { hideSearchDrop(); document.getElementById('searchInput').value = ''; openProfile(m.id); };
+    box.appendChild(item);
+  });
+  box.style.display = 'block';
+}
+
+function hideSearchDrop() {
+  const box = document.getElementById('searchResults');
+  if (box) box.style.display = 'none';
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  hideSearchDrop();
+}
+
+/* ── Sync status ─────────────────────────────────────────────────── */
+function setSyncStatus(state) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = { connecting:'⏳', synced:'🟢 Live', offline:'🟡 Offline', error:'🔴 Error' };
+  el.textContent = map[state] || '🟡';
+}
+
+function showFirebaseError(msg) {
+  let el = document.getElementById('fbError');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'fbError';
+    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2a0a0a;border:1px solid #e05252;border-radius:10px;color:#f0c0c0;font-size:13px;max-width:90vw;padding:12px 16px;z-index:9999;';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = msg + ' <button onclick="this.parentElement.remove()" style="margin-left:8px;background:none;border:none;color:#e05252;cursor:pointer">✕</button>';
+}
+
+// init search once DOM ready
+document.addEventListener('DOMContentLoaded', () => setTimeout(initSearchEvents, 500));

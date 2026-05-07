@@ -1,9 +1,7 @@
 /**
- * members.js
- * Data layer — Firebase Realtime Database (live sync across all devices).
+ * members.js  —  Data layer: Firebase + localStorage fallback
  */
 
-/* ─── FIREBASE CONFIG ──────────────────────────────────────────────── */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyC5jEYWBqGA0jdTZDU4vZPGaZCyHtyTUMk",
   authDomain:        "medhurur-family-tree.firebaseapp.com",
@@ -11,257 +9,145 @@ const FIREBASE_CONFIG = {
   projectId:         "medhurur-family-tree",
   storageBucket:     "medhurur-family-tree.firebasestorage.app",
   messagingSenderId: "655190326543",
-  appId:             "1:655190326543:web:3c48c890b93df9d18cd27a",
-  measurementId:     "G-1GX5JECS6Z"
+  appId:             "1:655190326543:web:3c48c890b93df9d18cd27a"
 };
 
 const DB_PATH = 'members';
+const LS_KEY  = 'medhuru_members';
 
 let _members = [];
 let _db      = null;
 let _ready   = false;
 
-/* ─── Seed data ────────────────────────────────────────────────────── */
-const SEED_MEMBERS = [
-  { id:1, name:"Raju",    dob:"1945-05-06", gender:"M", parentId:null, spouseId:2, photo:null, alarm:true,  note:"Patriarch" },
-  { id:2, name:"Savitri", dob:"1948-09-14", gender:"F", parentId:null, spouseId:1, photo:null, alarm:false, note:"Matriarch" }
+const SEED = [
+  { id:1,  name:"Yellaiah",  dob:"1930-01-15", gender:"M", parentId:null, spouseId:2,    photo:null, alarm:false, note:"Patriarch" },
+  { id:2,  name:"Vanamma",   dob:"1935-06-20", gender:"F", parentId:null, spouseId:1,    photo:null, alarm:false, note:"Matriarch" },
+  { id:3,  name:"Munuswamy", dob:"1955-03-10", gender:"M", parentId:1,    spouseId:4,    photo:null, alarm:false, note:"" },
+  { id:4,  name:"Lakshmi",   dob:"1958-07-22", gender:"F", parentId:null, spouseId:3,    photo:null, alarm:false, note:"" },
+  { id:5,  name:"Raju",      dob:"1957-11-05", gender:"M", parentId:1,    spouseId:6,    photo:null, alarm:false, note:"" },
+  { id:6,  name:"Savitri",   dob:"1960-04-18", gender:"F", parentId:null, spouseId:5,    photo:null, alarm:false, note:"" },
+  { id:7,  name:"Suresh",    dob:"1959-08-30", gender:"M", parentId:1,    spouseId:8,    photo:null, alarm:false, note:"" },
+  { id:8,  name:"Padma",     dob:"1962-02-14", gender:"F", parentId:null, spouseId:7,    photo:null, alarm:false, note:"" },
+  { id:9,  name:"Venkat",    dob:"1961-12-01", gender:"M", parentId:1,    spouseId:10,   photo:null, alarm:false, note:"" },
+  { id:10, name:"Kamala",    dob:"1964-09-25", gender:"F", parentId:null, spouseId:9,    photo:null, alarm:false, note:"" },
+  { id:11, name:"Ramaiah",   dob:"1963-05-17", gender:"M", parentId:1,    spouseId:12,   photo:null, alarm:false, note:"" },
+  { id:12, name:"Bhavani",   dob:"1966-11-08", gender:"F", parentId:null, spouseId:11,   photo:null, alarm:false, note:"" },
+  { id:13, name:"Srinivas",  dob:"1965-07-03", gender:"M", parentId:1,    spouseId:14,   photo:null, alarm:false, note:"" },
+  { id:14, name:"Meena",     dob:"1968-03-29", gender:"F", parentId:null, spouseId:13,   photo:null, alarm:false, note:"" },
+  { id:15, name:"Anitha",    dob:"1967-09-12", gender:"F", parentId:1,    spouseId:16,   photo:null, alarm:false, note:"" },
+  { id:16, name:"Krishna",   dob:"1964-06-05", gender:"M", parentId:null, spouseId:15,   photo:null, alarm:false, note:"" },
+  { id:17, name:"Arun",      dob:"1980-04-22", gender:"M", parentId:3,    spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:18, name:"Priya",     dob:"1983-08-15", gender:"F", parentId:3,    spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:19, name:"Kiran",     dob:"1982-01-30", gender:"M", parentId:5,    spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:20, name:"Deepa",     dob:"1984-06-11", gender:"F", parentId:5,    spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:21, name:"Naveen",    dob:"1985-11-20", gender:"M", parentId:7,    spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:22, name:"Suma",      dob:"1988-03-05", gender:"F", parentId:7,    spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:23, name:"Rahul",     dob:"2005-07-18", gender:"M", parentId:17,   spouseId:null, photo:null, alarm:true,  note:"" },
+  { id:24, name:"Sneha",     dob:"2008-12-03", gender:"F", parentId:17,   spouseId:null, photo:null, alarm:true,  note:"" }
 ];
 
-/* ═══════════════════════════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════════════════════════ */
 function loadMembers() {
-  _showSyncStatus('connecting');
-
-  /* ── Wait for Firebase SDK if not yet ready (max 5s) ── */
+  setSyncStatus('connecting');
   if (typeof firebase === 'undefined') {
-    let waited = 0;
-    const interval = setInterval(() => {
-      waited += 100;
-      if (typeof firebase !== 'undefined') {
-        clearInterval(interval);
-        _initFirebase();
-      } else if (waited >= 5000) {
-        clearInterval(interval);
-        _showError('Firebase SDK failed to load. Check your internet and refresh.');
-        _fallbackToLocalStorage();
-      }
+    let t = 0;
+    const iv = setInterval(() => {
+      t += 100;
+      if (typeof firebase !== 'undefined') { clearInterval(iv); _initFB(); }
+      else if (t >= 5000) { clearInterval(iv); _fallback(); }
     }, 100);
     return;
   }
-
-  _initFirebase();
+  _initFB();
 }
 
-function _initFirebase() {
-  /* ── Init Firebase (guard against double-init) ── */
+function _initFB() {
   try {
-    if (!firebase.apps || !firebase.apps.length) {
-      firebase.initializeApp(FIREBASE_CONFIG);
-    }
+    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     _db = firebase.database();
-  } catch (e) {
-    _showError('Firebase init error: ' + e.message);
-    _fallbackToLocalStorage();
-    return;
-  }
+  } catch(e) { _fallback(); return; }
 
-  /* ── Connection state indicator ── */
   firebase.database().ref('.info/connected').on('value', snap => {
-    if (snap.val() === true) {
-      _showSyncStatus('synced');
-    } else {
-      _showSyncStatus('offline');
-    }
+    setSyncStatus(snap.val() ? 'synced' : 'offline');
   });
 
-  const ref = _db.ref(DB_PATH);
-
-  /* ── Real-time listener ── */
-  ref.on('value', snapshot => {
-    const data = snapshot.val();
-
+  _db.ref(DB_PATH).on('value', snap => {
+    const data = snap.val();
     if (!data) {
-      /* Database empty — seed it */
-      const seedObj = {};
-      SEED_MEMBERS.forEach(m => { seedObj[m.id] = m; });
-      ref.set(seedObj);
-      _members = [...SEED_MEMBERS];
+      const obj = {}; SEED.forEach(m => { obj[m.id] = m; });
+      _db.ref(DB_PATH).set(obj);
+      _members = JSON.parse(JSON.stringify(SEED));
     } else {
       _members = Object.values(data).map(m => ({
-        ...m,
-        id:       Number(m.id),
-        parentId: m.parentId ? Number(m.parentId) : null,
-        spouseId: m.spouseId ? Number(m.spouseId) : null,
-        photo:    m.photo    || null,
-        alarm:    m.alarm    || false
+        ...m, id: +m.id,
+        parentId: m.parentId != null ? +m.parentId : null,
+        spouseId: m.spouseId != null ? +m.spouseId : null,
+        photo: m.photo || null, alarm: !!m.alarm
       }));
     }
-
-    _hideError();
-
-    if (!_ready) {
-      _ready = true;
-      if (typeof buildTree          === 'function') buildTree();
-      if (typeof startAlarmChecker  === 'function') startAlarmChecker();
-    } else {
-      if (typeof buildTree === 'function') buildTree();
-    }
-
+    if (!_ready) { _ready = true; if (typeof onDataReady === 'function') onDataReady(); }
+    else { if (typeof onDataUpdate === 'function') onDataUpdate(); }
   }, err => {
-    /* ── Firebase permission / rules error ── */
-    console.error('Firebase read error:', err);
-
-    let msg = '⚠️ Firebase error: ' + err.message;
-    if (err.code === 'PERMISSION_DENIED') {
-      msg = '🔒 Database rules are blocking access. Fix: Go to Firebase Console → Realtime Database → Rules → set both ".read" and ".write" to true → Publish.';
-    }
-    _showError(msg);
-    _fallbackToLocalStorage();
+    console.error(err);
+    _fallback();
   });
 }
 
-/* ─── Writes ───────────────────────────────────────────────────────── */
-function saveMembers() {
-  if (!_db) {
-    try { localStorage.setItem('familyTreeData', JSON.stringify(_members)); } catch (_) {}
-    return;
-  }
-  const obj = {};
-  _members.forEach(m => { obj[m.id] = m; });
-  _db.ref(DB_PATH).set(obj).catch(e => {
-    _showError('Write failed: ' + e.message);
-  });
-}
-
-function _saveSingleMember(m) {
-  if (!_db) { saveMembers(); return; }
-  _db.ref(`${DB_PATH}/${m.id}`).set(m).catch(e => {
-    _showError('Save failed: ' + e.message);
-  });
-}
-
-function _deleteSingleMember(id) {
-  if (!_db) { saveMembers(); return; }
-  _db.ref(`${DB_PATH}/${id}`).remove().catch(e => {
-    _showError('Delete failed: ' + e.message);
-  });
-}
-
-/* ─── Offline fallback ─────────────────────────────────────────────── */
-function _fallbackToLocalStorage() {
-  _showSyncStatus('offline');
+function _fallback() {
+  setSyncStatus('offline');
   try {
-    const raw = localStorage.getItem('familyTreeData');
-    _members  = raw ? JSON.parse(raw) : [...SEED_MEMBERS];
-  } catch (_) {
-    _members = [...SEED_MEMBERS];
-  }
-  if (!_ready) {
-    _ready = true;
-    if (typeof buildTree         === 'function') buildTree();
-    if (typeof startAlarmChecker === 'function') startAlarmChecker();
-  }
+    const raw = localStorage.getItem(LS_KEY);
+    _members  = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(SEED));
+  } catch (_) { _members = JSON.parse(JSON.stringify(SEED)); }
+  if (!_ready) { _ready = true; if (typeof onDataReady === 'function') onDataReady(); }
 }
 
-/* ─── Status / error UI ────────────────────────────────────────────── */
-function _showSyncStatus(state) {
-  const el = document.getElementById('syncStatus');
-  if (!el) return;
-  const map = {
-    connecting: { text:'⏳ Connecting…', color:'#a0702a' },
-    synced:     { text:'🟢 Live',        color:'#5cb85c' },
-    offline:    { text:'🟡 Offline',     color:'#e8a946' },
-    error:      { text:'🔴 Error',       color:'#e05252' }
-  };
-  const s = map[state] || map.offline;
-  el.textContent = s.text;
-  el.style.color = s.color;
-  if (state === 'synced') {
-    setTimeout(() => { if (el.textContent === '🟢 Live') el.textContent = '🟢 Live'; }, 3000);
-  }
+function _persist(m) {
+  if (_db) { _db.ref(`${DB_PATH}/${m.id}`).set(m); return; }
+  try { localStorage.setItem(LS_KEY, JSON.stringify(_members)); } catch(_) {}
+}
+function _persistDelete(id) {
+  if (_db) { _db.ref(`${DB_PATH}/${id}`).remove(); return; }
+  try { localStorage.setItem(LS_KEY, JSON.stringify(_members)); } catch(_) {}
 }
 
-function _showError(msg) {
-  _showSyncStatus('error');
-  let el = document.getElementById('firebaseError');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'firebaseError';
-    el.style.cssText = [
-      'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
-      'background:#2a0a0a', 'border:1px solid #e05252', 'border-radius:10px',
-      'color:#f0c0c0', 'font-size:13px', 'max-width:90vw', 'padding:12px 16px',
-      'z-index:9999', 'line-height:1.5', 'box-shadow:0 4px 24px rgba(0,0,0,.6)'
-    ].join(';');
-    document.body.appendChild(el);
-  }
-  el.innerHTML = msg + ' <button onclick="this.parentElement.remove()" style="margin-left:10px;background:none;border:none;color:#e05252;cursor:pointer;font-size:16px;">✕</button>';
-}
-
-function _hideError() {
-  const el = document.getElementById('firebaseError');
-  if (el) el.remove();
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   PUBLIC API
-═══════════════════════════════════════════════════════════════════ */
-function getAllMembers()      { return [..._members]; }
-function getMember(id)        { return _members.find(m => m.id === Number(id)); }
-function getRoots()           { return _members.filter(m => !m.parentId); }
-function getChildren(parentId){ return _members.filter(m => m.parentId === Number(parentId)); }
+function getAllMembers()   { return [..._members]; }
+function getMember(id)    { return _members.find(m => m.id === +id) || null; }
+function getRoots()       { return _members.filter(m => !m.parentId); }
+function getChildren(pid) { return _members.filter(m => m.parentId === +pid); }
 
 function addMember(data) {
-  const maxId  = _members.reduce((acc, m) => Math.max(acc, m.id), 0);
-  const member = {
-    id:       maxId + 1,
-    name:     data.name     || '',
-    dob:      data.dob      || '',
-    gender:   data.gender   || '',
-    note:     data.note     || '',
-    parentId: data.parentId || null,
-    spouseId: null,
-    photo:    data.photo    || null,
-    alarm:    data.alarm    || false
+  const maxId = _members.reduce((a, m) => Math.max(a, m.id), 0);
+  const m = {
+    id: maxId + 1, name: data.name || '', dob: data.dob || '',
+    gender: data.gender || '', note: data.note || '',
+    parentId: data.parentId || null, spouseId: null,
+    photo: data.photo || null, alarm: data.alarm || false
   };
-  _members.push(member);
-  _saveSingleMember(member);
-  return member;
+  _members.push(m); _persist(m); return m;
 }
 
-function updateMember(id, updates) {
-  const idx = _members.findIndex(m => m.id === Number(id));
+function updateMember(id, fields) {
+  const idx = _members.findIndex(m => m.id === +id);
   if (idx === -1) return;
-  _members[idx] = { ..._members[idx], ...updates };
-  _saveSingleMember(_members[idx]);
+  Object.assign(_members[idx], fields); _persist(_members[idx]);
 }
 
 function deleteMember(id) {
-  const member = getMember(id);
-  if (!member) return;
-  if (member.spouseId) {
-    const sp = getMember(member.spouseId);
-    if (sp) updateMember(sp.id, { spouseId: null });
-  }
-  getChildren(id).forEach(child => updateMember(child.id, { parentId: null }));
-  _members = _members.filter(m => m.id !== Number(id));
-  _deleteSingleMember(id);
+  const m = getMember(id); if (!m) return;
+  if (m.spouseId) updateMember(m.spouseId, { spouseId: null });
+  getChildren(id).forEach(c => updateMember(c.id, { parentId: null }));
+  _members = _members.filter(x => x.id !== +id);
+  _persistDelete(id);
 }
 
-function linkSpouses(idA, idB) {
-  updateMember(idA, { spouseId: Number(idB) });
-  updateMember(idB, { spouseId: Number(idA) });
+function linkSpouses(a, b) {
+  updateMember(a, { spouseId: +b });
+  updateMember(b, { spouseId: +a });
 }
 
 function toggleAlarm(id) {
-  const m = getMember(id);
-  if (!m) return false;
-  const newState = !m.alarm;
-  updateMember(id, { alarm: newState });
-  return newState;
+  const m = getMember(id); if (!m) return false;
+  const v = !m.alarm; updateMember(id, { alarm: v }); return v;
 }
 
-function setPhoto(id, dataUrl) {
-  updateMember(id, { photo: dataUrl });
-}
+function setPhoto(id, dataUrl) { updateMember(id, { photo: dataUrl }); }

@@ -3,280 +3,244 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Family Tree</title>
-
-  <link rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <title>Medhuru Family Tree</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/style.css" />
-
-  <!-- Firebase SDK — must load before members.js -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
-  <!-- ═══════════════════ TOP NAV ═══════════════════ -->
-  <nav class="navbar">
-    <div class="nav-brand">
-      <span class="brand-icon">🌳</span>
-      <span>Family Tree</span>
-    </div>
-
-    <div class="nav-stats">
-      <span id="syncStatus" class="stat-pill" style="color:#a0702a;">⏳ Connecting…</span>
-      <span class="stat-pill">Members: <strong id="statTotal">0</strong></span>
-      <span class="stat-pill">🔔 <strong id="statAlarms">0</strong></span>
-    </div>
-
-    <div class="nav-spacer"></div>
-
-    <div class="search-wrap">
-      <i class="ti ti-search"></i>
-      <input id="searchInput" type="text" placeholder="Search members…" autocomplete="off" />
-      <button class="search-clear" onclick="clearSearch()" title="Clear search">
-        <i class="ti ti-x"></i>
-      </button>
-      <div id="searchResults"></div>
-    </div>
-
-    <button class="nav-btn" onclick="showAlarmsModal()" title="View birthday alarms">
-      <i class="ti ti-bell"></i>
-      <span>Alarms</span>
+<!-- ═══════════════════════════════════════════════════
+     PAGE 1 — SPLASH
+════════════════════════════════════════════════════ -->
+<div id="page-splash" class="page active">
+  <div class="splash-stars" id="splashStars"></div>
+  <div class="splash-orb splash-orb-1"></div>
+  <div class="splash-orb splash-orb-2"></div>
+  <div class="splash-orb splash-orb-3"></div>
+  <div class="splash-content">
+    <div class="splash-emblem">🌳</div>
+    <div class="splash-ornament">✦ ✦ ✦</div>
+    <div class="splash-title">Medhuru Family</div>
+    <div class="splash-subtitle">Heritage &nbsp;·&nbsp; Legacy &nbsp;·&nbsp; Roots</div>
+    <div class="splash-divider"></div>
+    <div class="splash-tagline">"Roots run deep, branches reach wide"</div>
+    <button class="splash-enter-btn" onclick="showPage('gen1')">
+      Enter Family Tree &nbsp;→
     </button>
+    <div class="splash-footer">Yellaiah &amp; Vanamma &nbsp;·&nbsp; Est. 1930</div>
+  </div>
+</div>
 
-    <button class="nav-btn" onclick="downloadPDF()" title="Download family tree as PDF" id="pdfBtn">
-      <i class="ti ti-download"></i>
-      <span>PDF</span>
-    </button>
+<!-- ═══════════════════════════════════════════════════
+     NAVBAR  (hidden on splash)
+════════════════════════════════════════════════════ -->
+<nav id="mainNav" style="display:none;">
+  <a class="nav-brand" href="#" onclick="showPage('gen1');return false;">🌳 Medhuru Family</a>
 
-    <button class="nav-btn primary" onclick="openAddModal()">
-      <i class="ti ti-plus"></i>
-      <span>Add Member</span>
-    </button>
-  </nav>
+  <div id="breadcrumb"></div>
 
-  <!-- ═══════════════════ BIRTHDAY BANNER ═══════════════════ -->
-  <div id="bdayBanner"></div>
+  <div class="nav-spacer"></div>
 
-  <!-- ═══════════════════ TREE CANVAS ═══════════════════ -->
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-    <div id="treeCanvas"></div>
+  <div class="nav-stats">
+    <span id="syncStatus" class="stat-pill" style="color:var(--text4)">⏳</span>
+    <span class="stat-pill">Members: <strong id="statTotal">0</strong></span>
+    <span class="stat-pill">🔔 <strong id="statAlarms">0</strong></span>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════
-       PROFILE MODAL
-  ════════════════════════════════════════════════════════ -->
-  <div id="profileModal" class="modal-overlay">
-    <div class="modal-box">
-      <button class="modal-close" onclick="closeProfile()">
-        <i class="ti ti-x"></i>
-      </button>
+  <div class="search-wrap">
+    <i class="ti ti-search"></i>
+    <input id="searchInput" type="text" placeholder="Search members…" autocomplete="off" />
+    <button class="search-clear" onclick="clearSearch()"><i class="ti ti-x"></i></button>
+    <div id="searchResults"></div>
+  </div>
 
-      <!-- Header — always visible -->
-      <div class="prof-header">
-        <div id="pAvatar" class="prof-avatar" onclick="triggerProfPhoto()"></div>
-        <div id="pName" class="prof-name"></div>
-        <div id="pNote" class="prof-note"></div>
-        <div id="pMeta" class="prof-meta"></div>
+  <button class="nav-btn" onclick="showAlarmsModal()">
+    <i class="ti ti-bell"></i><span>Alarms</span>
+  </button>
+  <button class="nav-btn primary" onclick="openAddModal()">
+    <i class="ti ti-plus"></i><span>Add</span>
+  </button>
+</nav>
+
+<!-- Birthday banner -->
+<div id="bdayBanner"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 2 — GENERATION 1  (Yellaiah & Vanamma)
+════════════════════════════════════════════════════ -->
+<div id="page-gen1" class="page">
+  <div class="gen1-page-header">
+    <div class="gen1-page-title">✦ Medhuru Family Tree ✦</div>
+    <div class="gen1-page-sub">Generation I &nbsp;·&nbsp; The Roots</div>
+  </div>
+  <div id="gen1-body"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PAGE 3 — INDIVIDUAL FAMILY
+════════════════════════════════════════════════════ -->
+<div id="page-family" class="page">
+  <div class="family-page-header">
+    <div class="gen1-page-sub">Family Details</div>
+  </div>
+  <div id="family-body"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PROFILE MODAL
+════════════════════════════════════════════════════ -->
+<div id="profileModal" class="modal-overlay">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeProfile()"><i class="ti ti-x"></i></button>
+
+    <div class="prof-header">
+      <div id="pAvatar" class="prof-avatar" onclick="triggerProfPhoto()"></div>
+      <div id="pName"  class="prof-name"></div>
+      <div id="pNote"  class="prof-note"></div>
+      <div id="pMeta"  class="prof-meta"></div>
+    </div>
+
+    <!-- VIEW body -->
+    <div id="profViewBody" class="prof-body">
+      <div id="pSpouseRow" class="prof-spouse-row" style="display:none">
+        <span id="pSpouseLabel" class="spouse-label">Spouse of</span>
+        <span id="pSpouseName"  class="spouse-name"></span>
       </div>
-
-      <!-- ── VIEW BODY ───────────────────────────────────── -->
-      <div id="profViewBody" class="prof-body">
-        <!-- Spouse -->
-        <div id="pSpouseRow" class="prof-spouse-row" style="display:none;">
-          <span id="pSpouseLabel" class="spouse-label">Husband of</span>
-          <span id="pSpouseName"  class="spouse-name"></span>
+      <div id="pDob"></div>
+      <div id="pDays"></div>
+      <div class="alarm-row">
+        <span class="label">Birthday Alarm</span>
+        <div id="pToggle" class="tog" onclick="flipProfAlarm()">
+          <span id="pTogLbl" class="tog-label">Alarm off</span>
         </div>
-
-        <div class="prof-row">
-          <div id="pDob"></div>
-        </div>
-        <div id="pDays"></div>
-
-        <div class="alarm-row">
-          <span class="label">Birthday Alarm</span>
-          <div id="pToggle" class="tog" onclick="flipProfAlarm()">
-            <span id="pTogLbl" class="tog-label">Alarm off</span>
-          </div>
-        </div>
-
-        <div id="editSuccess" class="edit-success" style="display:none;"></div>
       </div>
+      <div id="editSuccess" style="display:none" class="editSuccess"></div>
+    </div>
 
-      <!-- ── EDIT FORM ───────────────────────────────────── -->
-      <div id="profEditForm" class="prof-body" style="display:none;">
-
-        <!-- Spouse info (read-only in edit mode) -->
-        <div id="eSpouseRow" class="prof-spouse-row" style="display:none;">
-          <span id="eSpouseLabel" class="spouse-label">Husband of</span>
-          <span id="eSpouseName"  class="spouse-name"></span>
-        </div>
-
-        <div class="form-group">
-          <label>Full Name *</label>
-          <input id="eName" type="text" placeholder="Full name" />
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Date of Birth</label>
-            <input id="eDob" type="date" />
-          </div>
-          <div class="form-group">
-            <label>Gender</label>
-            <select id="eGender">
-              <option value="">—</option>
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Note / Occupation</label>
-          <input id="eNote" type="text" placeholder="e.g. Engineer, Homemaker…" />
-        </div>
-
-        <div id="editError" class="form-error" style="display:none;"></div>
+    <!-- EDIT form -->
+    <div id="profEditForm" class="prof-body" style="display:none">
+      <div id="eSpouseRow" class="prof-spouse-row" style="display:none">
+        <span id="eSpouseLabel" class="spouse-label">Spouse of</span>
+        <span id="eSpouseName"  class="spouse-name"></span>
       </div>
-
-      <!-- ── VIEW ACTIONS ────────────────────────────────── -->
-      <div id="profViewActions" class="prof-actions">
-        <button class="btn btn-ghost" onclick="triggerProfPhoto()">
-          <i class="ti ti-camera"></i> Photo
-        </button>
-        <button class="btn btn-ghost" onclick="enterEditMode()">
-          <i class="ti ti-pencil"></i> Edit
-        </button>
-        <button class="btn btn-danger" onclick="confirmDeleteMember()">
-          <i class="ti ti-trash"></i> Remove
-        </button>
+      <div class="form-group"><label>Full Name *</label><input id="eName" type="text" placeholder="Full name" /></div>
+      <div class="form-row">
+        <div class="form-group"><label>Date of Birth</label><input id="eDob" type="date" /></div>
+        <div class="form-group"><label>Gender</label>
+          <select id="eGender"><option value="">—</option><option value="M">Male</option><option value="F">Female</option></select>
+        </div>
       </div>
+      <div class="form-group"><label>Note / Occupation</label><input id="eNote" type="text" placeholder="e.g. Engineer…" /></div>
+      <div id="editError" class="form-error" style="display:none"></div>
+    </div>
 
-      <!-- ── EDIT ACTIONS ────────────────────────────────── -->
-      <div id="profEditActions" class="prof-actions" style="display:none;">
-        <button class="btn btn-secondary" onclick="cancelEdit()">
-          <i class="ti ti-x"></i> Cancel
-        </button>
-        <button class="btn btn-primary" onclick="saveEdit()">
-          <i class="ti ti-check"></i> Save Changes
-        </button>
-      </div>
+    <!-- VIEW actions -->
+    <div id="profViewActions" class="prof-actions">
+      <button class="btn btn-ghost" onclick="triggerProfPhoto()"><i class="ti ti-camera"></i> Photo</button>
+      <button class="btn btn-ghost" onclick="enterEditMode()"><i class="ti ti-pencil"></i> Edit</button>
+      <button class="btn btn-danger" onclick="confirmDeleteMember()"><i class="ti ti-trash"></i> Remove</button>
+    </div>
 
+    <!-- EDIT actions -->
+    <div id="profEditActions" class="prof-actions" style="display:none">
+      <button class="btn btn-secondary" onclick="cancelEdit()"><i class="ti ti-x"></i> Cancel</button>
+      <button class="btn btn-primary"   onclick="saveEdit()"><i class="ti ti-check"></i> Save</button>
     </div>
   </div>
+</div>
 
-  <!-- ═══════════════════ ADD MEMBER MODAL ═══════════════════ -->
-  <div id="addModal" class="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2>Add Family Member</h2>
-      </div>
-
-      <div class="modal-form">
-        <div class="photo-drop" onclick="openFormPhotoUpload()">
-          <img id="prevImg" src="" alt="preview" style="display:none;" />
-          <div id="dropHint" class="drop-hint">
-            <i class="ti ti-camera" style="font-size:22px;color:var(--text-muted)"></i>
-            <div>Photo</div>
-          </div>
+<!-- ═══════════════════════════════════════════════════
+     ADD MEMBER MODAL
+════════════════════════════════════════════════════ -->
+<div id="addModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header"><h2>Add Family Member</h2></div>
+    <div class="modal-form">
+      <div class="photo-drop" onclick="openFormPhotoUpload()">
+        <img id="prevImg" src="" alt="" style="display:none" />
+        <div id="dropHint" class="drop-hint">
+          <i class="ti ti-camera" style="font-size:22px;color:var(--text4)"></i>
+          <div>Photo</div>
         </div>
-
+      </div>
+      <div class="form-group"><label>Full Name *</label><input id="fName" type="text" placeholder="e.g. Arjun" /></div>
+      <div class="form-row">
+        <div class="form-group"><label>Date of Birth</label><input id="fDob" type="date" /></div>
+        <div class="form-group"><label>Gender</label>
+          <select id="fGender"><option value="">—</option><option value="M">Male</option><option value="F">Female</option></select>
+        </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
-          <label>Full Name *</label>
-          <input id="fName" type="text" placeholder="e.g. Arjun Sharma" />
+          <label>Relationship</label>
+          <select id="fRel" onchange="onRelChange()">
+            <option value="child">Child of…</option>
+            <option value="spouse">Spouse of…</option>
+            <option value="root">New branch</option>
+          </select>
         </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Date of Birth</label>
-            <input id="fDob" type="date" />
-          </div>
-          <div class="form-group">
-            <label>Gender</label>
-            <select id="fGender" onchange="updateSpousePreview()">
-              <option value="">—</option>
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-            </select>
-          </div>
+        <div class="form-group" id="parentRow" style="display:flex;flex-direction:column;gap:5px;">
+          <label id="parentLbl">Parent</label>
+          <select id="fParent"></select>
         </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Relationship</label>
-            <select id="fRel" onchange="onRelChange()">
-              <option value="child">Child of…</option>
-              <option value="spouse">Spouse of…</option>
-              <option value="root">Root (new branch)</option>
-            </select>
-          </div>
-          <div class="form-group" id="parentRow" style="display:flex;flex-direction:column;gap:5px;">
-            <label id="parentLbl">Parent</label>
-            <select id="fParent" onchange="updateSpousePreview()"></select>
-          </div>
-        </div>
-
-        <!-- Spouse preview — shown when "Spouse of" is selected -->
-        <div id="spousePreview" class="spouse-preview" style="display:none;"></div>
-
-        <div class="form-group">
-          <label>Note / Occupation</label>
-          <input id="fNote" type="text" placeholder="e.g. Engineer, Homemaker…" />
-        </div>
-
-        <div class="alarm-row">
-          <span class="label">Birthday Alarm</span>
-          <div id="fToggle" class="tog" onclick="flipFormAlarm()">
-            <span id="fTogLbl" class="tog-label">Off</span>
-          </div>
-        </div>
-
-        <div id="formError" class="form-error"></div>
       </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveMember()">
-          <i class="ti ti-check"></i> Add Member
-        </button>
+      <div class="form-group"><label>Note / Occupation</label><input id="fNote" type="text" placeholder="e.g. Engineer…" /></div>
+      <div class="alarm-row">
+        <span class="label">Birthday Alarm</span>
+        <div id="fToggle" class="tog" onclick="flipFormAlarm()">
+          <span id="fTogLbl" class="tog-label">Off</span>
+        </div>
       </div>
+      <div id="formError" class="form-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveMember()"><i class="ti ti-check"></i> Add Member</button>
     </div>
   </div>
+</div>
 
-  <!-- ═══════════════════ ALARM LIST MODAL ═══════════════════ -->
-  <div id="alarmModal" class="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2>🔔 Birthday Alarms</h2>
-      </div>
-      <button class="modal-close" onclick="closeAlarmsModal()">
-        <i class="ti ti-x"></i>
-      </button>
-      <div id="alarmListEl"></div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeAlarmsModal()">Close</button>
-      </div>
+<!-- ═══════════════════════════════════════════════════
+     ALARM LIST MODAL
+════════════════════════════════════════════════════ -->
+<div id="alarmModal" class="modal-overlay">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeAlarmsModal()"><i class="ti ti-x"></i></button>
+    <div class="modal-header"><h2>🎂 Birthday Alarms</h2></div>
+    <div id="alarmListEl"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAlarmsModal()">Close</button>
     </div>
   </div>
+</div>
 
-  <!-- ═══════════════════ HIDDEN FILE INPUTS ═══════════════════ -->
-  <input type="file" id="globalPhotoInput" accept="image/*" style="display:none" />
-  <input type="file" id="formPhotoInput"   accept="image/*" style="display:none" />
+<!-- Hidden file inputs -->
+<input type="file" id="globalPhotoInput" accept="image/*" style="display:none" />
+<input type="file" id="formPhotoInput"   accept="image/*" style="display:none" />
 
-  <!-- ═══════════════════ PDF LIBRARIES ═══════════════════ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Scripts -->
+<script src="assets/js/members.js"></script>
+<script src="assets/js/photos.js"></script>
+<script src="assets/js/alarms.js"></script>
+<script src="assets/js/app.js"></script>
 
-  <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
-  <script src="assets/js/members.js"></script>
-  <script src="assets/js/photos.js"></script>
-  <script src="assets/js/alarms.js"></script>
-  <script src="assets/js/search.js"></script>
-  <script src="assets/js/app.js"></script>
-  <script src="assets/js/pdf.js"></script>
+<script>
+// Generate random stars for splash
+(function(){
+  const c = document.getElementById('splashStars');
+  for(let i=0;i<120;i++){
+    const s = document.createElement('div'); s.className = 'star';
+    const sz = Math.random()*2+1;
+    s.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-duration:${2+Math.random()*4}s;animation-delay:${Math.random()*4}s`;
+    c.appendChild(s);
+  }
+})();
+</script>
+
 </body>
 </html>
