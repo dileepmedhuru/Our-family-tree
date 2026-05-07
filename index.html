@@ -197,7 +197,7 @@
           </div>
           <div class="form-group">
             <label>Gender</label>
-            <select id="fGender">
+            <select id="fGender" onchange="updateSpousePreview()">
               <option value="">—</option>
               <option value="M">Male</option>
               <option value="F">Female</option>
@@ -208,17 +208,20 @@
         <div class="form-row">
           <div class="form-group">
             <label>Relationship</label>
-            <select id="fRel">
+            <select id="fRel" onchange="onRelChange()">
               <option value="child">Child of…</option>
               <option value="spouse">Spouse of…</option>
               <option value="root">Root (new branch)</option>
             </select>
           </div>
-          <div class="form-group" id="parentRow">
+          <div class="form-group" id="parentRow" style="display:flex;flex-direction:column;gap:5px;">
             <label id="parentLbl">Parent</label>
-            <select id="fParent"></select>
+            <select id="fParent" onchange="updateSpousePreview()"></select>
           </div>
         </div>
+
+        <!-- Spouse preview — shown when "Spouse of" is selected -->
+        <div id="spousePreview" class="spouse-preview" style="display:none;"></div>
 
         <div class="form-group">
           <label>Note / Occupation</label>

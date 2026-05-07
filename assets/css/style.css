@@ -1077,3 +1077,49 @@ body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ─── Spouse preview in Add Member modal ──────────────────────────── */
+.spouse-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(232,169,70,.08);
+  border: 1px solid rgba(232,169,70,.25);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  animation: fadeIn .2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity:0; transform:translateY(-4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.sp-av {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--gold-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sp-name {
+  font-size: 13px;
+  color: var(--text);
+}
+.sp-name strong { color: var(--gold); }
+
+.sp-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}

@@ -25,16 +25,37 @@ function buildTree() {
   const canvas = document.getElementById('treeCanvas');
   canvas.innerHTML = '';
 
-  /* Group root members into couples */
+  /* Group root members into couples.
+     A spouse belongs at the root level ONLY if:
+       1. They have no parentId (not a child of someone), AND
+       2. They have no children of their own at a deeper level
+          (meaning they are a true root-generation spouse, not
+           a spouse of a child who was added without a parentId) */
   const roots  = getRoots();
   const seen   = new Set();
   const couples = [];
 
+  /* First pass — collect all IDs that are spouses of non-root members */
+  const childLevelSpouseIds = new Set();
+  getAllMembers().forEach(m => {
+    if (m.parentId && m.spouseId) {
+      childLevelSpouseIds.add(m.spouseId);
+    }
+  });
+
   roots.forEach(m => {
     if (seen.has(m.id)) return;
+
+    /* Skip if this person is actually a spouse of a child-level member */
+    if (childLevelSpouseIds.has(m.id)) {
+      seen.add(m.id);
+      return;
+    }
+
     if (m.spouseId) {
       const sp = getMember(m.spouseId);
-      if (sp && !sp.parentId) {
+      /* Only pair at root if spouse is also root-level and not a child-level spouse */
+      if (sp && !sp.parentId && !childLevelSpouseIds.has(sp.id)) {
         couples.push([m, sp]);
         seen.add(m.id);
         seen.add(sp.id);
@@ -88,7 +109,13 @@ function renderChildren(parentId, container, depth) {
   sibRow.className = 'siblings-row';
   if (children.length === 1) sibRow.style.cssText = 'display:flex;gap:14px;justify-content:center;';
 
+  /* Track which IDs are already rendered as a spouse beside their partner */
+  const renderedAsSpouse = new Set();
+
   children.forEach(child => {
+    /* Skip if already shown beside their partner */
+    if (renderedAsSpouse.has(child.id)) return;
+
     const col = document.createElement('div');
     col.className = 'node-col';
     col.appendChild(makeVConnectorSmall());
@@ -102,14 +129,25 @@ function renderChildren(parentId, container, depth) {
       if (sp) {
         cr.appendChild(makeHeartBadge());
         cr.appendChild(makeCard(sp));
+        renderedAsSpouse.add(sp.id); /* mark spouse so we don't render them again */
       }
     }
     col.appendChild(cr);
 
-    if (expandedIds.has(child.id)) {
+    /* Expand children of this child OR their spouse (whichever has kids) */
+    const expandTarget = expandedIds.has(child.id) ? child.id
+      : (child.spouseId && expandedIds.has(child.spouseId)) ? child.spouseId
+      : null;
+
+    if (expandTarget) {
       const sub = document.createElement('div');
       sub.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
-      renderChildrenInto(child.id, sub, depth + 1);
+      /* Collect children from both partners */
+      const kids = [
+        ...getChildren(child.id),
+        ...(child.spouseId ? getChildren(child.spouseId) : [])
+      ];
+      if (kids.length) renderChildrenInto(child.id, sub, depth + 1);
       col.appendChild(sub);
     }
 
@@ -130,7 +168,11 @@ function renderChildrenInto(parentId, container, depth) {
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;gap:14px;justify-content:center;';
 
+  const renderedAsSpouse2 = new Set();
+
   children.forEach(child => {
+    if (renderedAsSpouse2.has(child.id)) return;
+
     const col = document.createElement('div');
     col.className = 'node-col';
     col.appendChild(makeVConnectorSmall());
@@ -141,11 +183,15 @@ function renderChildrenInto(parentId, container, depth) {
 
     if (child.spouseId) {
       const sp = getMember(child.spouseId);
-      if (sp) { cr.appendChild(makeHeartBadge()); cr.appendChild(makeCard(sp)); }
+      if (sp) {
+        cr.appendChild(makeHeartBadge());
+        cr.appendChild(makeCard(sp));
+        renderedAsSpouse2.add(sp.id);
+      }
     }
     col.appendChild(cr);
 
-    if (expandedIds.has(child.id)) {
+    if (expandedIds.has(child.id) || (child.spouseId && expandedIds.has(child.spouseId))) {
       const sub = document.createElement('div');
       sub.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
       renderChildrenInto(child.id, sub, depth + 1);
@@ -467,15 +513,7 @@ function openAddModal() {
   document.getElementById('prevImg').style.display  = 'none';
   document.getElementById('dropHint').style.display = 'block';
 
-  const sel = document.getElementById('fParent');
-  sel.innerHTML = '';
-  getAllMembers().forEach(m => {
-    const o = document.createElement('option');
-    o.value = m.id;
-    o.textContent = m.name + (m.dob ? ' (' + formatDob(m.dob) + ')' : '');
-    sel.appendChild(o);
-  });
-
+  populateMemberDropdown('child');
   onRelChange();
   document.getElementById('addModal').classList.add('open');
 }
@@ -484,10 +522,95 @@ function closeAddModal() {
   document.getElementById('addModal').classList.remove('open');
 }
 
+/**
+ * Fill the parent/spouse dropdown based on relationship type.
+ * For 'spouse' — only show members who don't already have a spouse.
+ * For 'child'  — show all members.
+ */
+function populateMemberDropdown(rt) {
+  const sel = document.getElementById('fParent');
+  sel.innerHTML = '';
+  const all = getAllMembers();
+
+  const list = rt === 'spouse'
+    ? all.filter(m => !m.spouseId)   /* only singles */
+    : all;
+
+  if (list.length === 0) {
+    const o = document.createElement('option');
+    o.disabled = true;
+    o.textContent = rt === 'spouse'
+      ? '— No single members found —'
+      : '— No members yet —';
+    sel.appendChild(o);
+    return;
+  }
+
+  list.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = m.name + (m.dob ? '  (' + formatDob(m.dob) + ')' : '');
+    sel.appendChild(o);
+  });
+}
+
 function onRelChange() {
   const rt = document.getElementById('fRel').value;
-  document.getElementById('parentRow').style.display = rt === 'root' ? 'none' : 'block';
-  document.getElementById('parentLbl').textContent   = rt === 'spouse' ? 'Spouse of' : 'Parent';
+
+  /* Hide/show the member picker row */
+  document.getElementById('parentRow').style.display = rt === 'root' ? 'none' : 'flex';
+
+  /* Update label */
+  document.getElementById('parentLbl').textContent =
+    rt === 'spouse' ? 'Spouse of' : 'Child of';
+
+  /* Repopulate dropdown for the chosen relationship */
+  if (rt !== 'root') populateMemberDropdown(rt);
+
+  /* Show/hide the spouse-preview card */
+  updateSpousePreview();
+}
+
+/** Show a small preview card under the dropdown when "Spouse of" is selected */
+function updateSpousePreview() {
+  const rt      = document.getElementById('fRel').value;
+  const preview = document.getElementById('spousePreview');
+  if (!preview) return;
+
+  if (rt !== 'spouse') {
+    preview.style.display = 'none';
+    return;
+  }
+
+  const sel = document.getElementById('fParent');
+  const id  = parseInt(sel.value, 10);
+  const m   = getMember(id);
+  if (!m) { preview.style.display = 'none'; return; }
+
+  const age = m.dob ? ageToday(m.dob) : null;
+
+  const newGender = document.getElementById('fGender').value;
+  let spouseLabel = 'Spouse of';
+  if (newGender === 'M')      spouseLabel = 'Husband of';
+  else if (newGender === 'F') spouseLabel = 'Wife of';
+  else if (m.gender === 'M')  spouseLabel = 'Wife of';
+  else if (m.gender === 'F')  spouseLabel = 'Husband of';
+
+  const avHtml = m.photo
+    ? '<img src="' + m.photo + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'
+    : initials(m.name);
+
+  const dobStr  = m.dob  ? formatDob(m.dob) : '';
+  const ageStr  = age !== null ? '  ·  Age ' + age : '';
+  const noteStr = m.note ? '  ·  ' + m.note : '';
+
+  preview.style.display = 'flex';
+  preview.innerHTML =
+    '<div class="sp-av">' + avHtml + '</div>' +
+    '<div>' +
+      '<div class="sp-name">' + spouseLabel + ' <strong>' + m.name + '</strong></div>' +
+      '<div class="sp-meta">' + dobStr + ageStr + noteStr + '</div>' +
+    '</div>';
 }
 
 function flipFormAlarm() {
@@ -525,8 +648,14 @@ function saveMember() {
 
   if (rt === 'spouse' && parentId) {
     linkSpouses(parentId, newMember.id);
-    /* Ensure spouse renders beside their partner, not as a separate root card */
+    /* Give the spouse the same parentId as their partner so they
+       appear at the correct generation, not as a stray root card */
+    const partner = getMember(parentId);
+    if (partner && partner.parentId) {
+      updateMember(newMember.id, { parentId: partner.parentId });
+    }
     expandedIds.add(parentId);
+    if (partner && partner.parentId) expandedIds.add(partner.parentId);
   }
 
   if (newMember.parentId) expandedIds.add(newMember.parentId);
