@@ -4,15 +4,16 @@
  */
 
 /* ─── FIREBASE CONFIG ──────────────────────────────────────────────── */
-const firebaseConfig = {
-    apiKey: "AIzaSyA5_j0_9OHkv6EZ18epK07yO2581ASGqwg",
-    authDomain: "medhuru-family-tree.firebaseapp.com",
-    databaseURL: "https://medhuru-family-tree-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "medhuru-family-tree",
-    storageBucket: "medhuru-family-tree.firebasestorage.app",
-    messagingSenderId: "348319277723",
-    appId: "1:348319277723:web:a79def305dd86bbabadc3e"
-  };
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyC5jEYWBqGA0jdTZDU4vZPGaZCyHtyTUMk",
+  authDomain:        "medhurur-family-tree.firebaseapp.com",
+  databaseURL:       "https://medhurur-family-tree-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "medhurur-family-tree",
+  storageBucket:     "medhurur-family-tree.firebasestorage.app",
+  messagingSenderId: "655190326543",
+  appId:             "1:655190326543:web:3c48c890b93df9d18cd27a",
+  measurementId:     "G-1GX5JECS6Z"
+};
 
 const DB_PATH = 'members';
 
@@ -32,16 +33,30 @@ const SEED_MEMBERS = [
 function loadMembers() {
   _showSyncStatus('connecting');
 
-  /* ── Check if Firebase SDK loaded ── */
+  /* ── Wait for Firebase SDK if not yet ready (max 5s) ── */
   if (typeof firebase === 'undefined') {
-    _showError('Firebase SDK failed to load. Check your internet connection and refresh.');
-    _fallbackToLocalStorage();
+    let waited = 0;
+    const interval = setInterval(() => {
+      waited += 100;
+      if (typeof firebase !== 'undefined') {
+        clearInterval(interval);
+        _initFirebase();
+      } else if (waited >= 5000) {
+        clearInterval(interval);
+        _showError('Firebase SDK failed to load. Check your internet and refresh.');
+        _fallbackToLocalStorage();
+      }
+    }, 100);
     return;
   }
 
+  _initFirebase();
+}
+
+function _initFirebase() {
   /* ── Init Firebase (guard against double-init) ── */
   try {
-    if (!firebase.apps.length) {
+    if (!firebase.apps || !firebase.apps.length) {
       firebase.initializeApp(FIREBASE_CONFIG);
     }
     _db = firebase.database();
