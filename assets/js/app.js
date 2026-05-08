@@ -141,28 +141,21 @@ function _renderGen1() {
   const primaryParentId = patriarch ? patriarch.id : null;
   const allChildren = primaryParentId ? getChildren(primaryParentId) : [];
 
-  // Reliable spouse filter:
-  // Someone is a "spouse-addition" (not a true child) if their spouse
-  // also appears in this same parent group AND was added before them.
-  // We keep only one from each married pair — the one with the LOWER id.
-  const seen = new Set();
-  const seenAsSpouse = new Set();
+  // Filter out in-laws: anyone whose id appears as another member's spouseId
+  // is a spouse who was assigned this parentId for tree navigation — not a real child.
+  const allSpouseIds = new Set(
+    getAllMembers()
+      .filter(m => m.spouseId != null)
+      .map(m => m.spouseId)
+  );
 
-  const uniqueChildren = [];
-  // Sort by id so we always process the earlier-added member first
-  const sorted = [...allChildren].sort((a, b) => a.id - b.id);
+  const uniqueChildren = allChildren.filter(c => !allSpouseIds.has(c.id));
 
-  sorted.forEach(c => {
-    if (seen.has(c.id)) return;           // already processed
-    if (seenAsSpouse.has(c.id)) return;   // already added as spouse of someone earlier
-    seen.add(c.id);
-    uniqueChildren.push(c);
-    // Mark their spouse so they get skipped
-    if (c.spouseId) seenAsSpouse.add(c.spouseId);
-  });
-
-  // Sort by DOB
-  uniqueChildren.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+// Apply saved custom order, fall back to DOB sort for new members
+  const dobSorted = [...uniqueChildren].sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+  const orderedChildren = applyOrder(patriarch.id, dobSorted);
+  uniqueChildren.length = 0;
+  orderedChildren.forEach(c => uniqueChildren.push(c));
 
   if (uniqueChildren.length === 0) {
     grid.innerHTML = '<div style="color:var(--text4);text-align:center;padding:40px;grid-column:1/-1">No children added yet. Click + Add to begin.</div>';
@@ -233,6 +226,7 @@ function _makeChildCard(m) {
 
   const card = document.createElement('div');
   card.className = 'child-card';
+  card.dataset.memberId = m.id;
 
   // Bell
   const bell = document.createElement('button');
@@ -413,7 +407,8 @@ function _getFamilyChildren(person, spouse) {
     if (c.spouseId) seenAsSpouseC.add(c.spouseId);
   });
 
-  return result.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+  const dobSorted = result.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+  return applyOrder(person.id, dobSorted);
 }
 
 /** Large card for the main couple on the family page */
@@ -479,6 +474,7 @@ function _makeFamChildCard(m) {
 
   const card = document.createElement('div');
   card.className = 'fam-child-card';
+  card.dataset.memberId = m.id;
 
   // Bell
   const bell = document.createElement('button');

@@ -726,3 +726,65 @@ button { cursor: pointer; font-family: var(--sans); }
   .profile-drawer { width: 100%; }
   .fab { bottom: 14px; right: 14px; }
 }
+/* ═══════════════════════════════════════════════
+   DRAG-TO-REORDER
+═══════════════════════════════════════════════ */
+.reorder-mode .child-card,
+.reorder-mode .fam-child-card {
+  cursor: grab;
+  border-color: var(--purple) !important;
+  box-shadow: var(--shadow), 0 0 0 1.5px rgba(124,58,237,.35) !important;
+  user-select: none;
+}
+.reorder-mode .child-card:active,
+.reorder-mode .fam-child-card:active { cursor: grabbing; }
+
+.drag-ghost {
+  opacity: .35;
+  transform: scale(.97);
+  border-color: var(--gold-dim) !important;
+}
+.drag-over {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 3px rgba(232,179,74,.35), var(--shadow) !important;
+  transform: translateY(-6px) scale(1.02);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.reorder-btn {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text3);
+  font-size: 12px; font-weight: 600; padding: 0 12px; height: 34px;
+  transition: color var(--ease), border-color var(--ease), background var(--ease);
+  cursor: pointer; font-family: var(--sans);
+}
+.reorder-btn:hover  { color: var(--purple2); border-color: var(--purple); }
+.reorder-btn.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+.reorder-hint {
+  position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+  background: var(--bg2); border: 1px solid var(--purple);
+  border-radius: 99px; color: var(--purple2);
+  font-size: 12px; font-weight: 600; padding: 8px 20px;
+  box-shadow: var(--shadow); z-index: 40; pointer-events: none;
+  animation: hintFade 3.5s ease forwards;
+}
+@keyframes hintFade {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.save-order-fab {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--gold), #c8922a);
+  border: none; border-radius: 99px; color: #09071a;
+  font-family: var(--sans); font-size: .88rem; font-weight: 700;
+  padding: 13px 28px; box-shadow: 0 4px 22px rgba(232,179,74,.45);
+  transition: transform var(--ease), box-shadow var(--ease); z-index: 41;
+  display: none;
+}
+.save-order-fab.visible { display: block; }
+.save-order-fab:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 8px 30px rgba(232,179,74,.6); }

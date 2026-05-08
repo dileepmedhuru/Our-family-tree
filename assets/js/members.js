@@ -69,6 +69,7 @@ function _initFB() {
   firebase.database().ref('.info/connected').on('value', snap => {
     setSyncStatus(snap.val() ? 'synced' : 'offline');
   });
+  _listenOrders();
 
   _db.ref(DB_PATH).on('value', snap => {
     const data = snap.val();
@@ -94,6 +95,7 @@ function _initFB() {
 
 function _fallback() {
   setSyncStatus('offline');
+  _listenOrders(); // no-op for localStorage path, but safe to call
   try {
     const raw = localStorage.getItem(LS_KEY);
     _members  = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(SEED));
@@ -151,3 +153,54 @@ function toggleAlarm(id) {
 }
 
 function setPhoto(id, dataUrl) { updateMember(id, { photo: dataUrl }); }
+
+// ── Member order ──────────────────────────────────────────────
+// Stores an explicit sort order per parent group.
+// Key: "order_<parentId>"  (parentId=0 means root/gen1 group)
+// Value: array of member ids in display order
+
+function getGroupOrder(parentId) {
+  const key = 'order_' + (parentId || 0);
+  if (_db) {
+    // Sync read from local cache — Firebase listener keeps _orderCache fresh
+    return _orderCache[key] || null;
+  }
+  try {
+    const raw = localStorage.getItem('medhuru_' + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch(_) { return null; }
+}
+
+function setGroupOrder(parentId, idArray) {
+  const key = 'order_' + (parentId || 0);
+  if (_db) {
+    _db.ref('orders/' + key).set(idArray);
+    _orderCache[key] = idArray;
+    return;
+  }
+  try { localStorage.setItem('medhuru_' + key, JSON.stringify(idArray)); } catch(_) {}
+}
+
+// Local cache so reads are synchronous even with Firebase
+let _orderCache = {};
+
+function _listenOrders() {
+  if (!_db) return;
+  _db.ref('orders').on('value', snap => {
+    _orderCache = snap.val() || {};
+  });
+}
+
+/**
+ * Apply saved order to a list of members.
+ * Members not in the saved order are appended at the end.
+ */
+function applyOrder(parentId, members) {
+  const order = getGroupOrder(parentId);
+  if (!order || !order.length) return members;
+  const map = new Map(members.map(m => [m.id, m]));
+  const sorted = [];
+  order.forEach(id => { if (map.has(id)) { sorted.push(map.get(id)); map.delete(id); } });
+  map.forEach(m => sorted.push(m)); // append any new members not yet in order
+  return sorted;
+}

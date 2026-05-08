@@ -57,6 +57,9 @@
       <button class="nav-icon-btn" id="pdfBtn" onclick="downloadPDF()" title="Export PDF">
         <i class="ti ti-download"></i>
       </button>
+      <button id="reorderBtn" class="reorder-btn" onclick="toggleReorderMode()">
+        ⠿ Reorder
+      </button>
       <button class="nav-pill-btn" onclick="openAddModal()">
         <i class="ti ti-plus"></i> Add
       </button>
@@ -110,6 +113,9 @@
       </div>
       <button class="nav-icon-btn" onclick="showAlarmsModal()">
         <i class="ti ti-bell"></i>
+      </button>
+      <button id="reorderBtn2" class="reorder-btn" onclick="toggleReorderMode()">
+        ⠿ Reorder
       </button>
       <button class="nav-pill-btn" onclick="openAddModal()">
         <i class="ti ti-plus"></i> Add
@@ -321,6 +327,8 @@
 <script src="assets/js/alarms.js"></script>
 <script src="assets/js/search.js"></script>
 <script src="assets/js/pdf.js"></script>
+<script src="assets/js/reorder.js"></script>
+<script src="assets/js/app.js"></script>
 <script src="assets/js/app.js"></script>
 
 <!-- Animated stars on splash -->
@@ -342,6 +350,8 @@
   }
 })();
 </script>
-
+<button id="saveOrderFab" class="save-order-fab" onclick="saveCurrentOrder()">
+  ✓ Save Order
+</button>
 </body>
 </html>
