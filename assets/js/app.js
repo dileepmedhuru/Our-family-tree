@@ -407,8 +407,7 @@ function _getFamilyChildren(person, spouse) {
     if (c.spouseId) seenAsSpouseC.add(c.spouseId);
   });
 
-  const dobSorted = result.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
-  return applyOrder(person.id, dobSorted);
+  return result.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
 }
 
 /** Large card for the main couple on the family page */
