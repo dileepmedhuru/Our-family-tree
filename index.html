@@ -1,176 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
   <title>Medhuru Family Tree</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="icon" type="image/x-icon" href="public/favicon.ico"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+  <link rel="stylesheet" href="assets/css/style.css"/>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════
-     PAGE 1 — SPLASH
-════════════════════════════════════════════════════ -->
-<div id="page-splash" class="page active">
-  <div class="splash-stars" id="splashStars"></div>
-  <div class="splash-orb splash-orb-1"></div>
-  <div class="splash-orb splash-orb-2"></div>
-  <div class="splash-orb splash-orb-3"></div>
-  <div class="splash-content">
-    <div class="splash-emblem">🌳</div>
-    <div class="splash-ornament">✦ ✦ ✦</div>
-    <div class="splash-title">Medhuru Family</div>
-    <div class="splash-subtitle">Heritage &nbsp;·&nbsp; Legacy &nbsp;·&nbsp; Roots</div>
-    <div class="splash-divider"></div>
-    <div class="splash-tagline">"Roots run deep, branches reach wide"</div>
-    <button class="splash-enter-btn" onclick="showPage('gen1')">
-      Enter Family Tree &nbsp;→
+<!-- ═══════════════════════════════════════════════
+     SCREEN 1 — SPLASH
+═══════════════════════════════════════════════ -->
+<div id="screen-splash" class="screen active">
+  <div id="splashStars" class="splash-stars"></div>
+  <div class="splash-orb orb1"></div>
+  <div class="splash-orb orb2"></div>
+  <div class="splash-orb orb3"></div>
+  <div class="splash-body">
+    <div class="splash-tree">🌳</div>
+    <div class="splash-dots">✦ &nbsp; ✦ &nbsp; ✦</div>
+    <h1 class="splash-title">Medhuru Family</h1>
+    <p class="splash-sub">Heritage &nbsp;·&nbsp; Legacy &nbsp;·&nbsp; Roots</p>
+    <div class="splash-line"></div>
+    <p class="splash-quote">"Roots run deep, branches reach wide"</p>
+    <button class="splash-btn" onclick="goTo('gen1')">
+      Enter Family Tree &nbsp; →
     </button>
-    <div class="splash-footer">Yellaiah &amp; Vanamma &nbsp;·&nbsp; Est. 1930</div>
+    <p class="splash-est">Yellaiah &amp; Vanamma &nbsp;·&nbsp; Est. 1930</p>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     NAVBAR  (hidden on splash)
-════════════════════════════════════════════════════ -->
-<nav id="mainNav" style="display:none;">
-  <a class="nav-brand" href="#" onclick="showPage('gen1');return false;">🌳 Medhuru Family</a>
-
-  <div id="breadcrumb"></div>
-
-  <div class="nav-spacer"></div>
-
-  <div class="nav-stats">
-    <span id="syncStatus" class="stat-pill" style="color:var(--text4)">⏳</span>
-    <span class="stat-pill">Members: <strong id="statTotal">0</strong></span>
-    <span class="stat-pill">🔔 <strong id="statAlarms">0</strong></span>
-  </div>
-
-  <div class="search-wrap">
-    <i class="ti ti-search"></i>
-    <input id="searchInput" type="text" placeholder="Search members…" autocomplete="off" />
-    <button class="search-clear" onclick="clearSearch()"><i class="ti ti-x"></i></button>
-    <div id="searchResults"></div>
-  </div>
-
-  <button class="nav-btn" onclick="showAlarmsModal()">
-    <i class="ti ti-bell"></i><span>Alarms</span>
-  </button>
-  <button class="nav-btn primary" onclick="openAddModal()">
-    <i class="ti ti-plus"></i><span>Add</span>
-  </button>
-</nav>
-
-<!-- Birthday banner -->
-<div id="bdayBanner"></div>
-
-<!-- ═══════════════════════════════════════════════════
-     PAGE 2 — GENERATION 1  (Yellaiah & Vanamma)
-════════════════════════════════════════════════════ -->
-<div id="page-gen1" class="page">
-  <div class="gen1-page-header">
-    <div class="gen1-page-title">✦ Medhuru Family Tree ✦</div>
-    <div class="gen1-page-sub">Generation I &nbsp;·&nbsp; The Roots</div>
-  </div>
-  <div id="gen1-body"></div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════
-     PAGE 3 — INDIVIDUAL FAMILY
-════════════════════════════════════════════════════ -->
-<div id="page-family" class="page">
-  <div class="family-page-header">
-    <div class="gen1-page-sub">Family Details</div>
-  </div>
-  <div id="family-body"></div>
-</div>
-
-<!-- ═══════════════════════════════════════════════════
-     PROFILE MODAL
-════════════════════════════════════════════════════ -->
-<div id="profileModal" class="modal-overlay">
-  <div class="modal-box">
-    <button class="modal-close" onclick="closeProfile()"><i class="ti ti-x"></i></button>
-
-    <div class="prof-header">
-      <div id="pAvatar" class="prof-avatar" onclick="triggerProfPhoto()"></div>
-      <div id="pName"  class="prof-name"></div>
-      <div id="pNote"  class="prof-note"></div>
-      <div id="pMeta"  class="prof-meta"></div>
-    </div>
-
-    <!-- VIEW body -->
-    <div id="profViewBody" class="prof-body">
-      <div id="pSpouseRow" class="prof-spouse-row" style="display:none">
-        <span id="pSpouseLabel" class="spouse-label">Spouse of</span>
-        <span id="pSpouseName"  class="spouse-name"></span>
+<!-- ═══════════════════════════════════════════════
+     SCREEN 2 — GENERATION 1  (only children, no wives)
+═══════════════════════════════════════════════ -->
+<div id="screen-gen1" class="screen">
+  <!-- top nav -->
+  <nav class="topnav">
+    <span class="nav-logo">🌳 Medhuru Family</span>
+    <div class="nav-right">
+      <div class="search-wrap">
+        <input id="searchInput" type="text" placeholder="Search…" autocomplete="off" oninput="runSearch()"/>
+        <i class="ti ti-search nav-search-icon"></i>
+        <div id="searchResults" class="search-drop"></div>
       </div>
-      <div id="pDob"></div>
-      <div id="pDays"></div>
-      <div class="alarm-row">
-        <span class="label">Birthday Alarm</span>
-        <div id="pToggle" class="tog" onclick="flipProfAlarm()">
-          <span id="pTogLbl" class="tog-label">Alarm off</span>
-        </div>
-      </div>
-      <div id="editSuccess" style="display:none" class="editSuccess"></div>
+      <button class="nav-icon-btn" onclick="showAlarmsModal()" title="Birthdays"><i class="ti ti-bell"></i></button>
+      <button class="nav-icon-btn" id="pdfBtn" onclick="downloadPDF()" title="Export PDF"><i class="ti ti-download"></i></button>
+      <button class="nav-pill-btn" onclick="openAddModal()"><i class="ti ti-plus"></i> Add</button>
+    </div>
+  </nav>
+  <div id="bdayBanner" class="bday-banner"></div>
+
+  <div class="gen1-page">
+    <div class="gen1-header">
+      <h2 class="gen1-title">✦ Medhuru Family Tree ✦</h2>
+      <p class="gen1-sub">Generation I &nbsp;·&nbsp; Tap a child to explore their family</p>
     </div>
 
-    <!-- EDIT form -->
-    <div id="profEditForm" class="prof-body" style="display:none">
-      <div id="eSpouseRow" class="prof-spouse-row" style="display:none">
-        <span id="eSpouseLabel" class="spouse-label">Spouse of</span>
-        <span id="eSpouseName"  class="spouse-name"></span>
+    <!-- Patriarch couple row -->
+    <div class="patriarch-section">
+      <div id="patriarch-couple" class="patriarch-couple"></div>
+      <div class="gen1-vconnector">
+        <div class="vline"></div>
+        <span class="gen-tag">Children of Yellaiah &amp; Vanamma</span>
+        <div class="vline"></div>
       </div>
-      <div class="form-group"><label>Full Name *</label><input id="eName" type="text" placeholder="Full name" /></div>
-      <div class="form-row">
-        <div class="form-group"><label>Date of Birth</label><input id="eDob" type="date" /></div>
-        <div class="form-group"><label>Gender</label>
-          <select id="eGender"><option value="">—</option><option value="M">Male</option><option value="F">Female</option></select>
-        </div>
-      </div>
-      <div class="form-group"><label>Note / Occupation</label><input id="eNote" type="text" placeholder="e.g. Engineer…" /></div>
-      <div id="editError" class="form-error" style="display:none"></div>
     </div>
 
-    <!-- VIEW actions -->
-    <div id="profViewActions" class="prof-actions">
-      <button class="btn btn-ghost" onclick="triggerProfPhoto()"><i class="ti ti-camera"></i> Photo</button>
-      <button class="btn btn-ghost" onclick="enterEditMode()"><i class="ti ti-pencil"></i> Edit</button>
-      <button class="btn btn-danger" onclick="confirmDeleteMember()"><i class="ti ti-trash"></i> Remove</button>
-    </div>
-
-    <!-- EDIT actions -->
-    <div id="profEditActions" class="prof-actions" style="display:none">
-      <button class="btn btn-secondary" onclick="cancelEdit()"><i class="ti ti-x"></i> Cancel</button>
-      <button class="btn btn-primary"   onclick="saveEdit()"><i class="ti ti-check"></i> Save</button>
-    </div>
+    <!-- Children — only the child, no wife shown here -->
+    <div id="children-grid" class="children-grid"></div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
+<!-- ═══════════════════════════════════════════════
+     SCREEN 3 — FAMILY PAGE (child + wife + their children)
+═══════════════════════════════════════════════ -->
+<div id="screen-family" class="screen">
+  <nav class="topnav">
+    <div class="nav-left">
+      <button class="back-btn" onclick="goTo('gen1')">
+        <i class="ti ti-arrow-left"></i> Back
+      </button>
+      <div class="breadcrumb">
+        <span class="bc-home" onclick="goTo('gen1')">Home</span>
+        <span class="bc-sep">›</span>
+        <span id="bc-name" class="bc-cur"></span>
+      </div>
+    </div>
+    <div class="nav-right">
+      <div class="search-wrap">
+        <input id="searchInput2" type="text" placeholder="Search…" autocomplete="off" oninput="runSearch2()"/>
+        <i class="ti ti-search nav-search-icon"></i>
+        <div id="searchResults2" class="search-drop"></div>
+      </div>
+      <button class="nav-icon-btn" onclick="showAlarmsModal()"><i class="ti ti-bell"></i></button>
+      <button class="nav-pill-btn" onclick="openAddModal()"><i class="ti ti-plus"></i> Add</button>
+    </div>
+  </nav>
+  <div class="bday-banner" id="bdayBanner2"></div>
+
+  <div id="family-page-body" class="family-page"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PROFILE DRAWER (slides in from right)
+═══════════════════════════════════════════════ -->
+<div id="profileBackdrop" class="drawer-backdrop" onclick="closeProfile()"></div>
+<div id="profileDrawer" class="profile-drawer">
+  <button class="drawer-close" onclick="closeProfile()"><i class="ti ti-x"></i></button>
+
+  <div class="drawer-head">
+    <div id="dAvatar" class="d-avatar" onclick="triggerProfPhoto()"></div>
+    <div id="dName"   class="d-name"></div>
+    <div id="dNote"   class="d-note"></div>
+    <div id="dMeta"   class="d-meta"></div>
+  </div>
+
+  <div id="dViewBody" class="drawer-body">
+    <div id="dSpouseRow" class="d-spouse-row" style="display:none">
+      <span id="dSpouseLabel" class="d-spouse-lbl"></span>
+      <span id="dSpouseName"  class="d-spouse-name"></span>
+    </div>
+    <div id="dDob"  class="d-field"></div>
+    <div id="dDays" class="d-days"></div>
+    <div class="d-alarm-row">
+      <span class="d-field-label">Birthday Alarm</span>
+      <div id="dAlarmTog" class="tog" onclick="flipProfAlarm()">
+        <span id="dAlarmLbl" class="tog-label">Off</span>
+      </div>
+    </div>
+    <div id="dEditSuccess" class="d-success" style="display:none"></div>
+  </div>
+
+  <div id="dEditForm" class="drawer-body" style="display:none">
+    <div id="dESpouseRow" class="d-spouse-row" style="display:none">
+      <span id="dESpouseLabel" class="d-spouse-lbl"></span>
+      <span id="dESpouseName"  class="d-spouse-name"></span>
+    </div>
+    <div class="form-group"><label>Full Name *</label><input id="eName" type="text"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Date of Birth</label><input id="eDob" type="date"/></div>
+      <div class="form-group"><label>Gender</label>
+        <select id="eGender"><option value="">—</option><option value="M">Male</option><option value="F">Female</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Occupation / Note</label><input id="eNote" type="text" placeholder="e.g. Farmer…"/></div>
+    <div id="editError" class="form-error" style="display:none"></div>
+  </div>
+
+  <div id="dViewActions" class="drawer-actions">
+    <button class="btn btn-ghost" onclick="triggerProfPhoto()"><i class="ti ti-camera"></i> Photo</button>
+    <button class="btn btn-ghost" onclick="enterEditMode()"><i class="ti ti-pencil"></i> Edit</button>
+    <button class="btn btn-danger" onclick="confirmDeleteMember()"><i class="ti ti-trash"></i></button>
+  </div>
+  <div id="dEditActions" class="drawer-actions" style="display:none">
+    <button class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+    <button class="btn btn-primary"   onclick="saveEdit()"><i class="ti ti-check"></i> Save</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
      ADD MEMBER MODAL
-════════════════════════════════════════════════════ -->
+═══════════════════════════════════════════════ -->
 <div id="addModal" class="modal-overlay">
   <div class="modal-box">
-    <div class="modal-header"><h2>Add Family Member</h2></div>
-    <div class="modal-form">
+    <button class="modal-close" onclick="closeAddModal()"><i class="ti ti-x"></i></button>
+    <div class="modal-head"><h2>Add Family Member</h2></div>
+    <div class="modal-body">
       <div class="photo-drop" onclick="openFormPhotoUpload()">
-        <img id="prevImg" src="" alt="" style="display:none" />
+        <img id="prevImg" src="" alt="" style="display:none"/>
         <div id="dropHint" class="drop-hint">
-          <i class="ti ti-camera" style="font-size:22px;color:var(--text4)"></i>
-          <div>Photo</div>
+          <i class="ti ti-camera" style="font-size:26px;color:var(--text4)"></i>
+          <div style="font-size:11px;margin-top:4px">Upload Photo</div>
         </div>
       </div>
-      <div class="form-group"><label>Full Name *</label><input id="fName" type="text" placeholder="e.g. Arjun" /></div>
+      <div class="form-group"><label>Full Name *</label><input id="fName" type="text" placeholder="e.g. Arjun"/></div>
       <div class="form-row">
-        <div class="form-group"><label>Date of Birth</label><input id="fDob" type="date" /></div>
+        <div class="form-group"><label>Date of Birth</label><input id="fDob" type="date"/></div>
         <div class="form-group"><label>Gender</label>
           <select id="fGender"><option value="">—</option><option value="M">Male</option><option value="F">Female</option></select>
         </div>
@@ -184,63 +196,68 @@
             <option value="root">New branch</option>
           </select>
         </div>
-        <div class="form-group" id="parentRow" style="display:flex;flex-direction:column;gap:5px;">
+        <div class="form-group" id="parentRow">
           <label id="parentLbl">Parent</label>
           <select id="fParent"></select>
         </div>
       </div>
-      <div class="form-group"><label>Note / Occupation</label><input id="fNote" type="text" placeholder="e.g. Engineer…" /></div>
-      <div class="alarm-row">
-        <span class="label">Birthday Alarm</span>
+      <div class="form-group"><label>Occupation / Note</label><input id="fNote" type="text" placeholder="e.g. Farmer, Teacher…"/></div>
+      <div class="d-alarm-row">
+        <span class="d-field-label">Birthday Alarm</span>
         <div id="fToggle" class="tog" onclick="flipFormAlarm()">
           <span id="fTogLbl" class="tog-label">Off</span>
         </div>
       </div>
-      <div id="formError" class="form-error"></div>
+      <div id="formError" class="form-error" style="display:none"></div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
       <button class="btn btn-primary"   onclick="saveMember()"><i class="ti ti-check"></i> Add Member</button>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════
-     ALARM LIST MODAL
-════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════
+     ALARM MODAL
+═══════════════════════════════════════════════ -->
 <div id="alarmModal" class="modal-overlay">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:380px">
     <button class="modal-close" onclick="closeAlarmsModal()"><i class="ti ti-x"></i></button>
-    <div class="modal-header"><h2>🎂 Birthday Alarms</h2></div>
-    <div id="alarmListEl"></div>
-    <div class="modal-footer">
+    <div class="modal-head"><h2>🎂 Birthday Alarms</h2></div>
+    <div id="alarmListEl" class="alarm-list"></div>
+    <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeAlarmsModal()">Close</button>
     </div>
   </div>
 </div>
 
-<!-- Hidden file inputs -->
-<input type="file" id="globalPhotoInput" accept="image/*" style="display:none" />
-<input type="file" id="formPhotoInput"   accept="image/*" style="display:none" />
+<!-- Hidden inputs -->
+<input type="file" id="globalPhotoInput" accept="image/*" style="display:none"/>
+<input type="file" id="formPhotoInput"   accept="image/*" style="display:none"/>
 
-<!-- Scripts -->
+<!-- PDF libs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- App scripts -->
 <script src="assets/js/members.js"></script>
 <script src="assets/js/photos.js"></script>
 <script src="assets/js/alarms.js"></script>
+<script src="assets/js/search.js"></script>
+<script src="assets/js/pdf.js"></script>
 <script src="assets/js/app.js"></script>
 
 <script>
-// Generate random stars for splash
+/* Animated stars on splash */
 (function(){
   const c = document.getElementById('splashStars');
-  for(let i=0;i<120;i++){
-    const s = document.createElement('div'); s.className = 'star';
-    const sz = Math.random()*2+1;
-    s.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-duration:${2+Math.random()*4}s;animation-delay:${Math.random()*4}s`;
+  for(let i=0;i<140;i++){
+    const s=document.createElement('div'); s.className='star';
+    const sz=Math.random()*2.2+.5;
+    s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;animation-duration:${1.5+Math.random()*4}s;animation-delay:${Math.random()*5}s`;
     c.appendChild(s);
   }
 })();
 </script>
-
 </body>
 </html>

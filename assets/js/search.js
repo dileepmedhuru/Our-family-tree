@@ -1,124 +1,230 @@
 /**
  * search.js
- * Live search with dropdown results and card highlighting.
+ * Live search with dropdown results and card/page navigation.
+ * Depends on: members.js (getAllMembers, getMember), alarms.js (formatDob),
+ *             photos.js (initials), app.js (showPage, openProfile, expandedIds)
  */
 
 let _searchTimeout = null;
 
-/* ─── Init ─────────────────────────────────────────────────────────── */
-
+/* ══════════════════════════════════════════════════════════════
+   INIT  —  call once after DOM ready
+══════════════════════════════════════════════════════════════ */
 function initSearch() {
   const input = document.getElementById('searchInput');
-  const box   = document.getElementById('searchResults');
+  if (!input) return;
 
-  input.addEventListener('input', onSearchInput);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') hideSearchDropdown();
+  /* Type → debounced search */
+  input.addEventListener('input', () => {
+    clearTimeout(_searchTimeout);
+    _searchTimeout = setTimeout(runSearch, 140);
+  });
+
+  /* Keyboard shortcuts */
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      clearSearch();
+    }
     if (e.key === 'Enter') {
-      const first = box.querySelector('.search-result-item');
+      const first = document.querySelector('#searchResults .search-result-item');
       if (first) first.click();
+    }
+    /* Arrow keys to move through results */
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      _moveSelection(e.key === 'ArrowDown' ? 1 : -1);
     }
   });
 
-  document.addEventListener('click', (e) => {
+  /* Close dropdown when clicking outside the search area */
+  document.addEventListener('click', e => {
     if (!e.target.closest('.search-wrap')) hideSearchDropdown();
   });
 }
 
-/* ─── Handlers ─────────────────────────────────────────────────────── */
-
-function onSearchInput() {
-  clearTimeout(_searchTimeout);
-  _searchTimeout = setTimeout(runSearch, 120);
-}
-
+/* ══════════════════════════════════════════════════════════════
+   SEARCH LOGIC
+══════════════════════════════════════════════════════════════ */
 function runSearch() {
-  const q   = document.getElementById('searchInput').value.trim().toLowerCase();
+  const q   = (document.getElementById('searchInput').value || '').trim().toLowerCase();
   const box = document.getElementById('searchResults');
+  if (!box) return;
 
   if (!q) { hideSearchDropdown(); return; }
 
+  /* Search by name AND note/occupation */
   const results = getAllMembers().filter(m =>
     m.name.toLowerCase().includes(q) ||
-    (m.note && m.note.toLowerCase().includes(q))
+    (m.note   && m.note.toLowerCase().includes(q)) ||
+    (m.gender === 'M' && 'male'.includes(q)) ||
+    (m.gender === 'F' && 'female'.includes(q))
   );
 
-  if (!results.length) { hideSearchDropdown(); return; }
+  if (!results.length) {
+    box.innerHTML = '<div class="search-no-results">No members found</div>';
+    box.style.display = 'block';
+    return;
+  }
 
   box.innerHTML = '';
+
   results.forEach(m => {
     const item = document.createElement('div');
     item.className = 'search-result-item';
+    item.setAttribute('tabindex', '0');
 
-    /* Mini avatar */
+    /* Mini circular avatar */
     const av = document.createElement('div');
     av.className = 'sri-av';
     if (m.photo) {
       const img = document.createElement('img');
       img.src = m.photo;
+      img.alt = m.name;
       av.appendChild(img);
     } else {
       av.textContent = initials(m.name);
     }
 
+    /* Text info */
     const txt = document.createElement('div');
-    txt.innerHTML = `
-      <div class="sri-name">${highlightMatch(m.name, q)}</div>
-      <div class="sri-dob">${formatDob(m.dob)}${m.note ? ' · ' + m.note : ''}</div>
-    `;
+    txt.innerHTML =
+      `<div class="sri-name">${_highlight(m.name, q)}</div>` +
+      `<div class="sri-dob">${formatDob(m.dob) || ''}${m.note ? ' · ' + m.note : ''}</div>`;
 
     item.appendChild(av);
     item.appendChild(txt);
-    item.addEventListener('click', () => jumpToMember(m.id));
+
+    /* Click → navigate to member */
+    item.addEventListener('click',  () => jumpToMember(m.id));
+    item.addEventListener('keydown', e => { if (e.key === 'Enter') jumpToMember(m.id); });
+
     box.appendChild(item);
   });
 
   box.style.display = 'block';
 }
 
-function hideSearchDropdown() {
-  document.getElementById('searchResults').style.display = 'none';
-}
+/* ══════════════════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════════════════ */
 
-function clearSearch() {
-  document.getElementById('searchInput').value = '';
-  hideSearchDropdown();
-}
-
-/* ─── Jump-to & highlight ──────────────────────────────────────────── */
-
+/**
+ * Jump directly to the member:
+ *  - If they're a root (Gen 1 person) → show gen1 page
+ *  - Otherwise find their parent branch and open the family page,
+ *    then highlight their card
+ */
 function jumpToMember(id) {
   clearSearch();
 
-  expandedIds.add(id);
   const m = getMember(id);
-  if (m && m.parentId) expandedIds.add(m.parentId);
+  if (!m) return;
 
-  buildTree();
+  /* Determine which page and which focus to show */
+  if (!m.parentId) {
+    /* Root-level member → Generation 1 page */
+    showPage('gen1');
+  } else {
+    /* Find the "family page owner" — walk up until we find
+       a child of a root member, that's whose family page to open */
+    const familyOwner = _findFamilyPageOwner(m);
+    if (familyOwner) {
+      showPage('family', familyOwner);
+    } else {
+      showPage('gen1');
+    }
+  }
 
-  setTimeout(() => {
-    const all = document.querySelectorAll('.card');
-    all.forEach(card => {
-      const nameEl = card.querySelector('.card-name');
-      if (nameEl && nameEl.textContent === getMember(id)?.name) {
+  /* Highlight the target card after the page has rendered */
+  setTimeout(() => _highlightCard(id), 180);
+}
+
+/**
+ * Walk up the tree to find the ancestor whose family page should be shown.
+ * "Family page owner" = a direct child of a root member (Gen 2).
+ */
+function _findFamilyPageOwner(m) {
+  if (!m) return null;
+
+  /* If this member is a direct child of a root → they are the owner */
+  if (m.parentId) {
+    const parent = getMember(m.parentId);
+    if (parent && !parent.parentId) return m.id;
+  }
+
+  /* Otherwise walk up */
+  if (m.parentId) {
+    return _findFamilyPageOwner(getMember(m.parentId));
+  }
+
+  return null;
+}
+
+/**
+ * Flash-highlight the card for a given member id.
+ */
+function _highlightCard(id) {
+  const m = getMember(id);
+  if (!m) return;
+
+  const cards = document.querySelectorAll('.card-name, .cc-name, .fmc-name, .cfc-name, .pc-name');
+  cards.forEach(nameEl => {
+    if (nameEl.textContent.trim() === m.name) {
+      const card = nameEl.closest(
+        '.child-card, .family-member-card, .child-fam-card, .patriarch-card'
+      );
+      if (card) {
         card.classList.add('highlighted');
         card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => card.classList.remove('highlighted'), 2500);
       }
-    });
-  }, 150);
+    }
+  });
 }
 
-/* ─── Helpers ──────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   DROPDOWN HELPERS
+══════════════════════════════════════════════════════════════ */
 
-function highlightMatch(text, query) {
-  const idx = text.toLowerCase().indexOf(query);
-  if (idx === -1) return text;
+function hideSearchDropdown() {
+  const box = document.getElementById('searchResults');
+  if (box) box.style.display = 'none';
+}
+
+function clearSearch() {
+  const input = document.getElementById('searchInput');
+  if (input) input.value = '';
+  hideSearchDropdown();
+}
+
+/** Move keyboard selection up/down through result items */
+function _moveSelection(dir) {
+  const items = document.querySelectorAll('#searchResults .search-result-item');
+  if (!items.length) return;
+  const active = document.querySelector('#searchResults .search-result-item.kbd-focus');
+  let idx = -1;
+  items.forEach((el, i) => { if (el === active) idx = i; });
+
+  if (active) active.classList.remove('kbd-focus');
+  idx = Math.max(0, Math.min(items.length - 1, idx + dir));
+  items[idx].classList.add('kbd-focus');
+  items[idx].scrollIntoView({ block: 'nearest' });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TEXT HIGHLIGHT
+══════════════════════════════════════════════════════════════ */
+
+/** Wrap the matching substring in a <mark> tag */
+function _highlight(text, query) {
+  if (!query) return text;
+  const i = text.toLowerCase().indexOf(query.toLowerCase());
+  if (i === -1) return text;
   return (
-    text.slice(0, idx) +
-    '<mark style="background:#7c3aed22;color:#c8a0f0;border-radius:3px">' +
-    text.slice(idx, idx + query.length) +
+    text.slice(0, i) +
+    '<mark style="background:rgba(139,92,246,.28);color:#c4b5fd;border-radius:3px;padding:0 1px">' +
+    text.slice(i, i + query.length) +
     '</mark>' +
-    text.slice(idx + query.length)
+    text.slice(i + query.length)
   );
 }
