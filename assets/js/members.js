@@ -1,16 +1,7 @@
 /**
  * members.js  —  Data layer: Firebase + localStorage fallback
+ * FIREBASE_CONFIG is loaded from assets/js/config.js (gitignored)
  */
-
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyC5jEYWBqGA0jdTZDU4vZPGaZCyHtyTUMk",
-  authDomain:        "medhurur-family-tree.firebaseapp.com",
-  databaseURL:       "https://medhurur-family-tree-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "medhurur-family-tree",
-  storageBucket:     "medhurur-family-tree.firebasestorage.app",
-  messagingSenderId: "655190326543",
-  appId:             "1:655190326543:web:3c48c890b93df9d18cd27a"
-};
 
 const DB_PATH = 'members';
 const LS_KEY  = 'medhuru_members';
@@ -18,33 +9,6 @@ const LS_KEY  = 'medhuru_members';
 let _members = [];
 let _db      = null;
 let _ready   = false;
-
-const SEED = [
-  { id:1,  name:"Yellaiah",  dob:"1930-01-15", gender:"M", parentId:null, spouseId:2,    photo:null, alarm:false, note:"Patriarch" },
-  { id:2,  name:"Vanamma",   dob:"1935-06-20", gender:"F", parentId:null, spouseId:1,    photo:null, alarm:false, note:"Matriarch" },
-  { id:3,  name:"Munuswamy", dob:"1955-03-10", gender:"M", parentId:1,    spouseId:4,    photo:null, alarm:false, note:"" },
-  { id:4,  name:"Lakshmi",   dob:"1958-07-22", gender:"F", parentId:null, spouseId:3,    photo:null, alarm:false, note:"" },
-  { id:5,  name:"Raju",      dob:"1957-11-05", gender:"M", parentId:1,    spouseId:6,    photo:null, alarm:false, note:"" },
-  { id:6,  name:"Savitri",   dob:"1960-04-18", gender:"F", parentId:null, spouseId:5,    photo:null, alarm:false, note:"" },
-  { id:7,  name:"Suresh",    dob:"1959-08-30", gender:"M", parentId:1,    spouseId:8,    photo:null, alarm:false, note:"" },
-  { id:8,  name:"Padma",     dob:"1962-02-14", gender:"F", parentId:null, spouseId:7,    photo:null, alarm:false, note:"" },
-  { id:9,  name:"Venkat",    dob:"1961-12-01", gender:"M", parentId:1,    spouseId:10,   photo:null, alarm:false, note:"" },
-  { id:10, name:"Kamala",    dob:"1964-09-25", gender:"F", parentId:null, spouseId:9,    photo:null, alarm:false, note:"" },
-  { id:11, name:"Ramaiah",   dob:"1963-05-17", gender:"M", parentId:1,    spouseId:12,   photo:null, alarm:false, note:"" },
-  { id:12, name:"Bhavani",   dob:"1966-11-08", gender:"F", parentId:null, spouseId:11,   photo:null, alarm:false, note:"" },
-  { id:13, name:"Srinivas",  dob:"1965-07-03", gender:"M", parentId:1,    spouseId:14,   photo:null, alarm:false, note:"" },
-  { id:14, name:"Meena",     dob:"1968-03-29", gender:"F", parentId:null, spouseId:13,   photo:null, alarm:false, note:"" },
-  { id:15, name:"Anitha",    dob:"1967-09-12", gender:"F", parentId:1,    spouseId:16,   photo:null, alarm:false, note:"" },
-  { id:16, name:"Krishna",   dob:"1964-06-05", gender:"M", parentId:null, spouseId:15,   photo:null, alarm:false, note:"" },
-  { id:17, name:"Arun",      dob:"1980-04-22", gender:"M", parentId:3,    spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:18, name:"Priya",     dob:"1983-08-15", gender:"F", parentId:3,    spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:19, name:"Kiran",     dob:"1982-01-30", gender:"M", parentId:5,    spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:20, name:"Deepa",     dob:"1984-06-11", gender:"F", parentId:5,    spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:21, name:"Naveen",    dob:"1985-11-20", gender:"M", parentId:7,    spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:22, name:"Suma",      dob:"1988-03-05", gender:"F", parentId:7,    spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:23, name:"Rahul",     dob:"2005-07-18", gender:"M", parentId:17,   spouseId:null, photo:null, alarm:true,  note:"" },
-  { id:24, name:"Sneha",     dob:"2008-12-03", gender:"F", parentId:17,   spouseId:null, photo:null, alarm:true,  note:"" }
-];
 
 function loadMembers() {
   setSyncStatus('connecting');
@@ -74,9 +38,7 @@ function _initFB() {
   _db.ref(DB_PATH).on('value', snap => {
     const data = snap.val();
     if (!data) {
-      const obj = {}; SEED.forEach(m => { obj[m.id] = m; });
-      _db.ref(DB_PATH).set(obj);
-      _members = JSON.parse(JSON.stringify(SEED));
+      _members = [];
     } else {
       _members = Object.values(data).map(m => ({
         ...m, id: +m.id,
@@ -95,11 +57,11 @@ function _initFB() {
 
 function _fallback() {
   setSyncStatus('offline');
-  _listenOrders(); // no-op for localStorage path, but safe to call
+  _listenOrders();
   try {
     const raw = localStorage.getItem(LS_KEY);
-    _members  = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(SEED));
-  } catch (_) { _members = JSON.parse(JSON.stringify(SEED)); }
+    _members  = raw ? JSON.parse(raw) : [];
+  } catch (_) { _members = []; }
   if (!_ready) { _ready = true; if (typeof onDataReady === 'function') onDataReady(); }
 }
 
@@ -155,16 +117,9 @@ function toggleAlarm(id) {
 function setPhoto(id, dataUrl) { updateMember(id, { photo: dataUrl }); }
 
 // ── Member order ──────────────────────────────────────────────
-// Stores an explicit sort order per parent group.
-// Key: "order_<parentId>"  (parentId=0 means root/gen1 group)
-// Value: array of member ids in display order
-
 function getGroupOrder(parentId) {
   const key = 'order_' + (parentId || 0);
-  if (_db) {
-    // Sync read from local cache — Firebase listener keeps _orderCache fresh
-    return _orderCache[key] || null;
-  }
+  if (_db) return _orderCache[key] || null;
   try {
     const raw = localStorage.getItem('medhuru_' + key);
     return raw ? JSON.parse(raw) : null;
@@ -181,7 +136,6 @@ function setGroupOrder(parentId, idArray) {
   try { localStorage.setItem('medhuru_' + key, JSON.stringify(idArray)); } catch(_) {}
 }
 
-// Local cache so reads are synchronous even with Firebase
 let _orderCache = {};
 
 function _listenOrders() {
@@ -191,16 +145,12 @@ function _listenOrders() {
   });
 }
 
-/**
- * Apply saved order to a list of members.
- * Members not in the saved order are appended at the end.
- */
 function applyOrder(parentId, members) {
   const order = getGroupOrder(parentId);
   if (!order || !order.length) return members;
   const map = new Map(members.map(m => [m.id, m]));
   const sorted = [];
   order.forEach(id => { if (map.has(id)) { sorted.push(map.get(id)); map.delete(id); } });
-  map.forEach(m => sorted.push(m)); // append any new members not yet in order
+  map.forEach(m => sorted.push(m));
   return sorted;
 }

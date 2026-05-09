@@ -1,27 +1,13 @@
 /**
  * app.js  —  Medhuru Family Tree
- *
- * Page flow:
- *   screen-splash  →  screen-gen1  →  screen-family
- *
- * screen-gen1  : Yellaiah + Vanamma couple at top,
- *                then ONLY their children (no wives shown here).
- *                Click a child card → opens screen-family for that child.
- *
- * screen-family: The child + his/her spouse as a couple,
- *                their children listed below.
- *                Click a grandchild who has children → opens another
- *                screen-family for that grandchild (infinite depth).
- *
- * Profile drawer slides in from the right on double-tap / "View" tap.
  */
 
 /* ══════════════════════════════════════════════
    ROUTER STATE
 ══════════════════════════════════════════════ */
 let _currentScreen = 'splash';
-let _focusId       = null;    // member id whose family is shown on screen-family
-let _navStack      = [];      // [{screen, focusId}] for back navigation
+let _focusId       = null;
+let _navStack      = [];
 
 /* ══════════════════════════════════════════════
    BOOTSTRAP
@@ -29,16 +15,14 @@ let _navStack      = [];      // [{screen, focusId}] for back navigation
 document.addEventListener('DOMContentLoaded', () => {
   initPhotoInputs();
   initSearch();
-  loadMembers();   // members.js — calls onDataReady() when Firebase connects
+  loadMembers();
 });
 
-/** Called by members.js once data is loaded for the first time */
 function onDataReady() {
   startAlarmChecker();
   goTo('splash');
 }
 
-/** Called by members.js on every live Firebase update */
 function onDataUpdate() {
   _redrawCurrentScreen();
 }
@@ -46,23 +30,13 @@ function onDataUpdate() {
 /* ══════════════════════════════════════════════
    NAVIGATION
 ══════════════════════════════════════════════ */
-
-/**
- * Navigate to a screen.
- * @param {string} screen  'splash' | 'gen1' | 'family'
- * @param {number} [focusId]  member id (required for 'family')
- * @param {boolean} [isBack]  true when going back (slide-back animation)
- */
 function goTo(screen, focusId, isBack) {
-  // push current to stack (unless going back or leaving splash)
   if (!isBack && _currentScreen !== 'splash') {
     _navStack.push({ screen: _currentScreen, focusId: _focusId });
   }
-
   _currentScreen = screen;
   _focusId       = focusId || null;
 
-  // switch visible screen
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.remove('active', 'slide-back');
   });
@@ -71,24 +45,19 @@ function goTo(screen, focusId, isBack) {
   if (!el) return;
   el.classList.add('active');
   if (isBack) el.classList.add('slide-back');
-
-  // scroll to top
   el.scrollTo(0, 0);
 
-  // render content
   if (screen === 'splash')  _renderSplash();
   if (screen === 'gen1')    _renderGen1();
   if (screen === 'family')  _renderFamily(_focusId);
 }
 
-/** Go back one level */
 function goBack() {
   if (_navStack.length === 0) { goTo('gen1', null, true); return; }
   const prev = _navStack.pop();
   goTo(prev.screen, prev.focusId, true);
 }
 
-/** Re-draw whatever screen is currently visible */
 function _redrawCurrentScreen() {
   checkBirthdayAlarms();
   if (_currentScreen === 'gen1')   _renderGen1();
@@ -100,25 +69,19 @@ function _redrawCurrentScreen() {
 ══════════════════════════════════════════════ */
 function _renderSplash() {
   checkBirthdayAlarms();
-  // Splash is fully static HTML — nothing to render dynamically.
-  // The "Enter Family Tree" button calls goTo('gen1').
 }
 
 /* ══════════════════════════════════════════════
    SCREEN 2 — GEN 1
-   Shows: Yellaiah & Vanamma couple + their children only.
-   Wives/husbands of children are NOT shown here.
 ══════════════════════════════════════════════ */
 function _renderGen1() {
   checkBirthdayAlarms();
 
-  // ── Patriarch couple ─────────────────────────
   const coupleEl = document.getElementById('patriarch-couple');
   if (!coupleEl) return;
   coupleEl.innerHTML = '';
 
-  // Find root couple — first root male (or id=1 as patriarch)
-  const roots = getRoots();
+  const roots     = getRoots();
   const patriarch = roots.find(m => m.gender === 'M') || roots[0];
   const matriarch = patriarch && patriarch.spouseId ? getMember(patriarch.spouseId) : null;
 
@@ -131,48 +94,41 @@ function _renderGen1() {
     coupleEl.appendChild(_makePatriarchCard(matriarch));
   }
 
-  // ── Children grid ─────────────────────────────
   const grid = document.getElementById('children-grid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  // Only use patriarch's children — matriarch children cause duplicates
-  // because all children/spouses are stored under patriarch's id
   const primaryParentId = patriarch ? patriarch.id : null;
-  const allChildren = primaryParentId ? getChildren(primaryParentId) : [];
+  const allChildren     = primaryParentId ? getChildren(primaryParentId) : [];
 
-  // Filter out in-laws: anyone whose id appears as another member's spouseId
-  // is a spouse who was assigned this parentId for tree navigation — not a real child.
-  const allSpouseIds = new Set(
-    getAllMembers()
-      .filter(m => m.spouseId != null)
-      .map(m => m.spouseId)
+  // Build a map of all members in allChildren for quick lookup
+  const byId = new Map(allChildren.map(c => [c.id, c]));
+
+  // A member is an in-law if some sibling in allChildren claims them as a spouse
+  const claimedAsSpouse = new Set(
+    allChildren
+      .filter(c => c.spouseId != null && byId.has(c.spouseId))
+      .map(c => c.spouseId)
   );
 
-  const uniqueChildren = allChildren.filter(c => !allSpouseIds.has(c.id));
+  // Real children = in allChildren but NOT claimed as a spouse by a sibling
+  const uniqueChildren = allChildren.filter(c => !claimedAsSpouse.has(c.id));
 
-// Apply saved custom order, fall back to DOB sort for new members
-  const dobSorted = [...uniqueChildren].sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
-  const orderedChildren = applyOrder(patriarch.id, dobSorted);
-  uniqueChildren.length = 0;
-  orderedChildren.forEach(c => uniqueChildren.push(c));
+  const dobSorted       = [...uniqueChildren].sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+  const orderedChildren = patriarch ? applyOrder(patriarch.id, dobSorted) : dobSorted;
 
-  if (uniqueChildren.length === 0) {
+  if (orderedChildren.length === 0) {
     grid.innerHTML = '<div style="color:var(--text4);text-align:center;padding:40px;grid-column:1/-1">No children added yet. Click + Add to begin.</div>';
     return;
   }
 
-  uniqueChildren.forEach(child => {
-    grid.appendChild(_makeChildCard(child));
-  });
+  orderedChildren.forEach(child => grid.appendChild(_makeChildCard(child)));
 }
 
-/** Large patriarch / matriarch card */
 function _makePatriarchCard(m) {
   const card = document.createElement('div');
   card.className = 'patriarch-card';
 
-  // Bell button
   const bell = document.createElement('button');
   bell.className = 'card-bell' + (m.alarm ? ' on' : '');
   bell.innerHTML = '🔔';
@@ -180,7 +136,6 @@ function _makePatriarchCard(m) {
   bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); _redrawCurrentScreen(); };
   card.appendChild(bell);
 
-  // Birthday dot
   const d = daysUntilBirthday(m.dob);
   if (m.alarm && d !== null && d <= 7) {
     const dot = document.createElement('div');
@@ -189,10 +144,8 @@ function _makePatriarchCard(m) {
     card.appendChild(dot);
   }
 
-  // Avatar
   card.appendChild(buildAvatarEl(m, 90));
 
-  // Name
   const name = document.createElement('div');
   name.className = 'pc-name'; name.textContent = m.name;
   card.appendChild(name);
@@ -210,15 +163,10 @@ function _makePatriarchCard(m) {
     card.appendChild(note);
   }
 
-  // Click → profile drawer
   card.addEventListener('click', () => openProfile(m.id));
   return card;
 }
 
-/**
- * Child card on gen1 page — shows ONLY the child, no spouse.
- * Clicking opens their family page.
- */
 function _makeChildCard(m) {
   const spouse     = m.spouseId ? getMember(m.spouseId) : null;
   const childCount = getChildren(m.id).length +
@@ -228,14 +176,12 @@ function _makeChildCard(m) {
   card.className = 'child-card';
   card.dataset.memberId = m.id;
 
-  // Bell
   const bell = document.createElement('button');
   bell.className = 'card-bell' + (m.alarm ? ' on' : '');
   bell.innerHTML = '🔔';
   bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); _redrawCurrentScreen(); };
   card.appendChild(bell);
 
-  // Birthday dot
   const d = daysUntilBirthday(m.dob);
   if (m.alarm && d !== null && d <= 7) {
     const dot = document.createElement('div');
@@ -243,38 +189,29 @@ function _makeChildCard(m) {
     card.appendChild(dot);
   }
 
-  // Avatar
   card.appendChild(buildAvatarEl(m, 76));
 
-  // Name
   const name = document.createElement('div');
   name.className = 'cc-name'; name.textContent = m.name;
   card.appendChild(name);
 
-  // DOB
   if (m.dob) {
     const dob = document.createElement('div');
     dob.className = 'cc-dob'; dob.textContent = formatDob(m.dob);
     card.appendChild(dob);
   }
 
-  // Tap hint — "View Family →"
   const hint = document.createElement('div');
   hint.className = 'cc-tap-hint';
   hint.textContent = (childCount > 0 ? childCount + ' children · ' : '') + 'View Family →';
   card.appendChild(hint);
 
-  // Click → family page
   card.addEventListener('click', () => goTo('family', m.id));
   return card;
 }
 
 /* ══════════════════════════════════════════════
    SCREEN 3 — FAMILY PAGE
-   Shows: [child] ♥ [spouse] couple at top,
-          their children in a grid below.
-          Each grandchild card has "View Family →"
-          if they have their own children.
 ══════════════════════════════════════════════ */
 function _renderFamily(focusId) {
   checkBirthdayAlarms();
@@ -288,15 +225,13 @@ function _renderFamily(focusId) {
     return;
   }
 
-  // Update breadcrumb name
   const bcName = document.getElementById('bc-name');
   if (bcName) bcName.textContent = person.name + "'s Family";
 
   const spouse   = person.spouseId ? getMember(person.spouseId) : null;
-  // Collect children from both person and spouse
   const children = _getFamilyChildren(person, spouse);
 
-  // ── Parent context ────────────────────────────
+  // Parent context
   if (person.parentId) {
     const parent       = getMember(person.parentId);
     const parentSpouse = parent && parent.spouseId ? getMember(parent.spouseId) : null;
@@ -313,20 +248,15 @@ function _renderFamily(focusId) {
     }
   }
 
-  // ── Couple section ────────────────────────────
+  // Couple section
   const coupleWrap = document.createElement('div');
   coupleWrap.className = 'fam-couple-wrap';
-
   const coupleRow = document.createElement('div');
   coupleRow.className = 'fam-couple-row';
 
   coupleRow.appendChild(_makeFamCard(person, true));
 
   if (spouse) {
-    // Determine labels
-    const personLabel = person.gender === 'F' ? 'Wife' : person.gender === 'M' ? 'Husband' : 'Partner';
-    const spouseLabel = spouse.gender === 'F' ? 'Wife' : spouse.gender === 'M' ? 'Husband' : 'Partner';
-
     const heartDiv = document.createElement('div');
     heartDiv.className = 'fam-heart';
     heartDiv.innerHTML =
@@ -335,28 +265,22 @@ function _renderFamily(focusId) {
     coupleRow.appendChild(heartDiv);
     coupleRow.appendChild(_makeFamCard(spouse, false));
   } else {
-    // Show "Add Spouse" placeholder
-    const ph = document.createElement('div');
-    ph.className = 'add-spouse-ph';
-    ph.innerHTML =
-      '<div class="add-icon">＋</div>' +
-      '<div class="add-text">Add Spouse</div>';
-    ph.onclick = () => {
-      // pre-fill add modal as spouse-of this person
-      _openAddModalAs('spouse', person.id);
-    };
-
     const heartDiv = document.createElement('div');
     heartDiv.className = 'fam-heart';
     heartDiv.innerHTML = '<div class="fam-heart-circle" style="opacity:.35">♥</div>';
     coupleRow.appendChild(heartDiv);
+
+    const ph = document.createElement('div');
+    ph.className = 'add-spouse-ph';
+    ph.innerHTML = '<div class="add-icon">＋</div><div class="add-text">Add Spouse</div>';
+    ph.onclick = () => _openAddModalAs('spouse', person.id);
     coupleRow.appendChild(ph);
   }
 
   coupleWrap.appendChild(coupleRow);
   container.appendChild(coupleWrap);
 
-  // ── Children section ──────────────────────────
+  // Children section
   if (children.length > 0) {
     const conn = document.createElement('div');
     conn.className = 'fam-connector';
@@ -379,7 +303,7 @@ function _renderFamily(focusId) {
     container.appendChild(noKids);
   }
 
-  // ── FAB — add child ───────────────────────────
+  // FAB
   const fab = document.createElement('button');
   fab.className = 'fab';
   fab.innerHTML = '＋ Add Child';
@@ -387,18 +311,15 @@ function _renderFamily(focusId) {
   container.appendChild(fab);
 }
 
-/** Collect unique children of this couple — excludes anyone who is a spouse of a sibling */
 function _getFamilyChildren(person, spouse) {
-  const seen = new Set();
-  const all  = [
+  const all = [
     ...getChildren(person.id),
     ...(spouse ? getChildren(spouse.id) : [])
   ];
 
-  // Same reliable approach: sort by id, skip anyone already seen as a spouse
-  const seenC = new Set();
+  const seenC         = new Set();
   const seenAsSpouseC = new Set();
-  const result = [];
+  const result        = [];
 
   [...all].sort((a, b) => a.id - b.id).forEach(c => {
     if (seenC.has(c.id) || seenAsSpouseC.has(c.id)) return;
@@ -407,37 +328,32 @@ function _getFamilyChildren(person, spouse) {
     if (c.spouseId) seenAsSpouseC.add(c.spouseId);
   });
 
-  return result.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+  const dobSorted = result.sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
+  return applyOrder(person.id, dobSorted);
 }
 
-/** Large card for the main couple on the family page */
 function _makeFamCard(m, isPrimary) {
   const card = document.createElement('div');
   card.className = 'fam-card' + (isPrimary ? ' primary' : '');
 
-  // Role label
   const role = document.createElement('div');
   role.className = 'fmc-role';
   role.textContent = m.gender === 'F' ? '👩 Wife' : m.gender === 'M' ? '👨 Husband' : '👤';
   card.appendChild(role);
 
-  // Bell
   const bell = document.createElement('button');
   bell.className = 'card-bell' + (m.alarm ? ' on' : '');
   bell.innerHTML = '🔔';
   bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); _redrawCurrentScreen(); };
   card.appendChild(bell);
 
-  // Birthday dot
   const d = daysUntilBirthday(m.dob);
   if (m.alarm && d !== null && d <= 7) {
     const dot = document.createElement('div'); dot.className = 'bday-dot'; card.appendChild(dot);
   }
 
-  // Avatar
   card.appendChild(buildAvatarEl(m, 96));
 
-  // Name
   const name = document.createElement('div');
   name.className = 'fmc-name'; name.textContent = m.name;
   card.appendChild(name);
@@ -460,38 +376,32 @@ function _makeFamCard(m, isPrimary) {
     card.appendChild(note);
   }
 
-  // Click → profile drawer
   card.addEventListener('click', () => openProfile(m.id));
   return card;
 }
 
-/** Smaller card for children shown on the family page */
 function _makeFamChildCard(m) {
-  const spouse      = m.spouseId ? getMember(m.spouseId) : null;
-  const grandkids   = _getFamilyChildren(m, spouse);
-  const hasFamily   = grandkids.length > 0 || spouse;
+  const spouse    = m.spouseId ? getMember(m.spouseId) : null;
+  const grandkids = _getFamilyChildren(m, spouse);
+  const hasFamily = grandkids.length > 0 || spouse;
 
   const card = document.createElement('div');
   card.className = 'fam-child-card';
   card.dataset.memberId = m.id;
 
-  // Bell
   const bell = document.createElement('button');
   bell.className = 'card-bell' + (m.alarm ? ' on' : '');
   bell.innerHTML = '🔔';
   bell.onclick = e => { e.stopPropagation(); toggleAlarm(m.id); _redrawCurrentScreen(); };
   card.appendChild(bell);
 
-  // Birthday dot
   const d = daysUntilBirthday(m.dob);
   if (m.alarm && d !== null && d <= 7) {
     const dot = document.createElement('div'); dot.className = 'bday-dot'; card.appendChild(dot);
   }
 
-  // Avatar
   card.appendChild(buildAvatarEl(m, 66));
 
-  // Name
   const name = document.createElement('div');
   name.className = 'fcc-name'; name.textContent = m.name;
   card.appendChild(name);
@@ -516,7 +426,6 @@ function _makeFamChildCard(m) {
     card.appendChild(gk);
   }
 
-  // "View Family →" drill-down button if they have a family
   if (hasFamily) {
     const btn = document.createElement('button');
     btn.className = 'fcc-drill';
@@ -525,7 +434,6 @@ function _makeFamChildCard(m) {
     card.appendChild(btn);
   }
 
-  // Single tap = profile, only if no drill button
   card.addEventListener('click', () => {
     if (!hasFamily) openProfile(m.id);
   });
@@ -534,7 +442,7 @@ function _makeFamChildCard(m) {
 }
 
 /* ══════════════════════════════════════════════
-   PROFILE DRAWER  (slides in from right)
+   PROFILE DRAWER
 ══════════════════════════════════════════════ */
 let _profId   = null;
 let _profEdit = false;
@@ -556,7 +464,6 @@ function closeProfile() {
 function _renderProfileView(m) {
   _profEdit = false;
 
-  // Avatar
   const av = document.getElementById('dAvatar');
   av.innerHTML = '';
   if (m.photo) { const img = document.createElement('img'); img.src = m.photo; av.appendChild(img); }
@@ -574,7 +481,6 @@ function _renderProfileView(m) {
     ch.length ? ch.length + ' child' + (ch.length > 1 ? 'ren' : '') : ''
   ].filter(Boolean).join(' · ');
 
-  // Spouse row
   const spRow = document.getElementById('dSpouseRow');
   if (sp) {
     document.getElementById('dSpouseLabel').textContent =
@@ -588,12 +494,10 @@ function _renderProfileView(m) {
   document.getElementById('dDays').textContent =
     d === null ? '' : d === 0 ? '🎂 Birthday Today!' : d === 1 ? '🔔 Tomorrow!' : '🔔 In ' + d + ' days';
 
-  // Alarm toggle
   const tog = document.getElementById('dAlarmTog');
   tog.className = 'tog' + (m.alarm ? ' on' : '');
   document.getElementById('dAlarmLbl').textContent = 'Alarm ' + (m.alarm ? 'on' : 'off');
 
-  // Show view, hide edit
   document.getElementById('dViewBody').style.display    = '';
   document.getElementById('dEditForm').style.display    = 'none';
   document.getElementById('dViewActions').style.display = '';
@@ -610,7 +514,7 @@ function enterEditMode() {
   document.getElementById('eNote').value   = m.note   || '';
   document.getElementById('eGender').value = m.gender || '';
 
-  const sp = m.spouseId ? getMember(m.spouseId) : null;
+  const sp  = m.spouseId ? getMember(m.spouseId) : null;
   const esr = document.getElementById('dESpouseRow');
   if (sp) {
     document.getElementById('dESpouseLabel').textContent =
@@ -664,7 +568,6 @@ function triggerProfPhoto() {
   triggerPhotoUpload(_profId, (id, url) => {
     setPhoto(id, url);
     _redrawCurrentScreen();
-    // refresh drawer avatar
     const m = getMember(id);
     if (m && document.getElementById('profileDrawer').classList.contains('open')) {
       _renderProfileView(m);
@@ -686,11 +589,6 @@ function confirmDeleteMember() {
 let _formAlarm = false;
 let _formPhoto = null;
 
-/**
- * Open the add modal.
- * If called from context buttons (Add Child / Add Spouse),
- * pass type and parentId to pre-fill the form.
- */
 function openAddModal(type, parentId) {
   _openAddModalAs(type || null, parentId || null);
 }
@@ -707,12 +605,10 @@ function _openAddModalAs(type, parentId) {
   document.getElementById('formError').style.display = 'none';
 
   if (type && parentId) {
-    // Pre-fill relationship type
     document.getElementById('fRel').value = type;
     document.getElementById('parentRow').style.display = '';
     document.getElementById('parentLbl').textContent =
       type === 'spouse' ? 'Spouse of' : 'Child of';
-    // Populate full dropdown and pre-select the context person
     _populateParentDropdown(type);
     document.getElementById('fParent').value = parentId;
   } else {
@@ -783,11 +679,7 @@ function saveMember() {
 
   if (rt === 'spouse' && parentId) {
     linkSpouses(parentId, newM.id);
-    // Give spouse the same parentId as their partner (keeps them at correct generation)
-    const partner = getMember(parentId);
-    if (partner && partner.parentId) {
-      updateMember(newM.id, { parentId: partner.parentId });
-    }
+    // Do NOT copy parentId to spouse — spouses are found via spouseId link only
   }
 
   closeAddModal();
@@ -801,10 +693,9 @@ function showFormError(msg) {
 }
 
 /* ══════════════════════════════════════════════
-   SEARCH  (second search input on family screen)
+   SEARCH (family screen second input)
 ══════════════════════════════════════════════ */
 function runSearch2() {
-  // Mirror runSearch but use searchInput2 / searchResults2
   const q   = (document.getElementById('searchInput2').value || '').trim().toLowerCase();
   const box = document.getElementById('searchResults2');
   if (!box) return;
@@ -839,7 +730,7 @@ function runSearch2() {
 }
 
 /* ══════════════════════════════════════════════
-   SYNC STATUS  (called from members.js)
+   SYNC STATUS
 ══════════════════════════════════════════════ */
 function setSyncStatus(state) {
   const el = document.getElementById('syncStatus');
