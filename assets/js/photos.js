@@ -8,19 +8,19 @@ let _pendingMemberId = null;
 let _pendingCallback = null;
 
 // Crop state
-let _cropCallback  = null;  // called with cropped dataUrl
+let _cropCallback  = null;
 let _cropImgSrc    = null;
 let _cropNatW      = 0;
 let _cropNatH      = 0;
-let _cropX         = 0;     // image top-left offset in viewport
+let _cropX         = 0;
 let _cropY         = 0;
 let _cropZoom      = 1;
 let _cropDragging  = false;
 let _cropLastX     = 0;
 let _cropLastY     = 0;
 
-const CROP_SIZE    = 260;   // viewport px
-const CROP_RADIUS  = 108;   // circle radius px
+const CROP_SIZE    = 260;
+const CROP_RADIUS  = 108;
 
 /* ── File triggers ──────────────────────────────────────────── */
 function triggerPhotoUpload(memberId, callback) {
@@ -40,9 +40,13 @@ function initPhotoInputs() {
     const file = e.target.files[0];
     if (!file) return;
     e.target.value = '';
+    // Capture before going async — do NOT null them yet, crop modal needs them
+    const memberId = _pendingMemberId;
+    const cb       = _pendingCallback;
+    _pendingMemberId = null;
+    _pendingCallback = null;
     _readAndOpenCrop(file, croppedUrl => {
-      if (_pendingCallback) _pendingCallback(_pendingMemberId, croppedUrl);
-      _pendingMemberId = _pendingCallback = null;
+      if (cb) cb(memberId, croppedUrl);
     });
   });
 
@@ -50,9 +54,10 @@ function initPhotoInputs() {
     const file = e.target.files[0];
     if (!file) return;
     e.target.value = '';
+    const cb = _pendingCallback;
+    _pendingCallback = null;
     _readAndOpenCrop(file, croppedUrl => {
-      if (_pendingCallback) _pendingCallback(null, croppedUrl);
-      _pendingCallback = null;
+      if (cb) cb(null, croppedUrl);
     });
   });
 }
@@ -76,9 +81,7 @@ function _openCropModal(src) {
   img.onload = () => {
     _cropNatW = img.naturalWidth;
     _cropNatH = img.naturalHeight;
-    _cropZoom = 1;
 
-    // Center image in viewport at zoom=1
     const initScale = Math.max(CROP_SIZE / _cropNatW, CROP_SIZE / _cropNatH);
     _cropZoom = initScale;
     document.getElementById('cropZoom').min   = initScale;
@@ -90,7 +93,7 @@ function _openCropModal(src) {
     _applyCropTransform();
     _clampCrop();
     _applyCropTransform();
-    document.getElementById('cropZoomVal').textContent = (initScale).toFixed(1) + 'x';
+    document.getElementById('cropZoomVal').textContent = initScale.toFixed(1) + 'x';
   };
   img.src = src;
 
@@ -105,49 +108,46 @@ function closeCropModal() {
 }
 
 function confirmCrop() {
-  const canvas = document.createElement('canvas');
-  const OUTPUT = 300;
+  const canvas  = document.createElement('canvas');
+  const OUTPUT  = 300;
   canvas.width  = OUTPUT;
   canvas.height = OUTPUT;
-  const ctx = canvas.getContext('2d');
+  const ctx     = canvas.getContext('2d');
 
-  // Draw circle clip
   ctx.beginPath();
   ctx.arc(OUTPUT / 2, OUTPUT / 2, OUTPUT / 2, 0, Math.PI * 2);
   ctx.clip();
 
-  // What portion of the original image is visible inside the circle?
-  // Circle centre in viewport = (CROP_SIZE/2, CROP_SIZE/2)
-  // Image is at (_cropX, _cropY) with scale _cropZoom
-  const scale  = _cropZoom;
-  const srcX   = (CROP_SIZE / 2 - CROP_RADIUS - _cropX) / scale;
-  const srcY   = (CROP_SIZE / 2 - CROP_RADIUS - _cropY) / scale;
-  const srcW   = (CROP_RADIUS * 2) / scale;
-  const srcH   = (CROP_RADIUS * 2) / scale;
+  const scale = _cropZoom;
+  const srcX  = (CROP_SIZE / 2 - CROP_RADIUS - _cropX) / scale;
+  const srcY  = (CROP_SIZE / 2 - CROP_RADIUS - _cropY) / scale;
+  const srcW  = (CROP_RADIUS * 2) / scale;
+  const srcH  = (CROP_RADIUS * 2) / scale;
 
-  const img = document.getElementById('cropImg');
+  const img        = document.getElementById('cropImg');
   ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, OUTPUT, OUTPUT);
-
   const croppedUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+  // Save callback reference BEFORE closeCropModal() nulls _cropCallback
+  const cb = _cropCallback;
   closeCropModal();
-  if (_cropCallback) _cropCallback(croppedUrl);
+  if (cb) cb(croppedUrl);
 }
 
 /* ── Transform helpers ──────────────────────────────────────── */
 function _applyCropTransform() {
   const img = document.getElementById('cropImg');
-  img.style.transform = `translate(${_cropX}px, ${_cropY}px) scale(${_cropZoom})`;
+  img.style.transform       = `translate(${_cropX}px, ${_cropY}px) scale(${_cropZoom})`;
   img.style.transformOrigin = '0 0';
-  img.style.width  = _cropNatW + 'px';
-  img.style.height = _cropNatH + 'px';
+  img.style.width           = _cropNatW + 'px';
+  img.style.height          = _cropNatH + 'px';
 }
 
 function _clampCrop() {
-  const w = _cropNatW * _cropZoom;
-  const h = _cropNatH * _cropZoom;
-  // The circle area: from CROP_SIZE/2 - CROP_RADIUS to CROP_SIZE/2 + CROP_RADIUS
-  const minX = CROP_SIZE / 2 + CROP_RADIUS - w;   // image right edge must cover circle right
-  const maxX = CROP_SIZE / 2 - CROP_RADIUS;        // image left edge must cover circle left
+  const w    = _cropNatW * _cropZoom;
+  const h    = _cropNatH * _cropZoom;
+  const minX = CROP_SIZE / 2 + CROP_RADIUS - w;
+  const maxX = CROP_SIZE / 2 - CROP_RADIUS;
   const minY = CROP_SIZE / 2 + CROP_RADIUS - h;
   const maxY = CROP_SIZE / 2 - CROP_RADIUS;
   _cropX = Math.min(maxX, Math.max(minX, _cropX));
@@ -159,22 +159,14 @@ function _bindCropEvents() {
   const vp   = document.querySelector('.crop-viewport');
   const zoom = document.getElementById('cropZoom');
   if (!vp) return;
-
-  // Mouse drag
   vp.addEventListener('mousedown',  _onCropMouseDown);
   window.addEventListener('mousemove', _onCropMouseMove);
   window.addEventListener('mouseup',   _onCropMouseUp);
-
-  // Touch drag
   vp.addEventListener('touchstart',  _onCropTouchStart,  { passive: false });
   vp.addEventListener('touchmove',   _onCropTouchMove,   { passive: false });
   vp.addEventListener('touchend',    _onCropTouchEnd);
-
-  // Scroll zoom
-  vp.addEventListener('wheel', _onCropWheel, { passive: false });
-
-  // Slider zoom
-  zoom.addEventListener('input', _onCropZoomSlider);
+  vp.addEventListener('wheel',       _onCropWheel,       { passive: false });
+  zoom.addEventListener('input',     _onCropZoomSlider);
 }
 
 function _unbindCropEvents() {
@@ -240,7 +232,6 @@ function _onCropWheel(e) {
 function _onCropZoomSlider() {
   const slider = document.getElementById('cropZoom');
   const newZ   = parseFloat(slider.value);
-  // Zoom around centre of viewport
   const cx = CROP_SIZE / 2, cy = CROP_SIZE / 2;
   _cropX = cx - (cx - _cropX) * (newZ / _cropZoom);
   _cropY = cy - (cy - _cropY) * (newZ / _cropZoom);
@@ -269,7 +260,7 @@ function _touchDist(touches) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-/* ── Avatar builder (unchanged interface) ───────────────────── */
+/* ── Avatar builder ─────────────────────────────────────────── */
 function initials(name) {
   return (name || '?').split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
 }
@@ -297,12 +288,12 @@ function buildAvatarEl(member, size) {
   cam.innerHTML = '📷';
   cam.onclick = e => {
     e.stopPropagation();
-    triggerPhotoUpload(member.id, (id, url) => {
+    const capturedId = member.id;
+    triggerPhotoUpload(capturedId, (id, url) => {
       setPhoto(id, url);
-      if (typeof refreshCurrentPage === 'function') refreshCurrentPage();
-      // Refresh drawer if open
+      if (typeof _redrawCurrentScreen === 'function') _redrawCurrentScreen();
       const drawer = document.getElementById('profileDrawer');
-      if (drawer && drawer.classList.contains('open') && id === _pendingMemberId) {
+      if (drawer && drawer.classList.contains('open')) {
         const m = getMember(id);
         if (m && typeof _renderProfileView === 'function') _renderProfileView(m);
       }

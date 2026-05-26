@@ -418,10 +418,12 @@ button { cursor: pointer; font-family: var(--sans); }
   background: var(--bg3); border: 1px solid var(--border); border-radius: 99px;
 }
 
+/* FIX: children grid now centers when there are fewer cards */
 .fam-children-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 160px));
   gap: 14px; max-width: 860px; width: 100%;
+  justify-content: center;
 }
 
 .fam-child-card {
@@ -721,7 +723,7 @@ button { cursor: pointer; font-family: var(--sans); }
   .nav-right { flex-wrap: wrap; gap: 6px; }
   .search-wrap input { width: 140px !important; }
   .children-grid     { grid-template-columns: repeat(2, 1fr); }
-  .fam-children-grid { grid-template-columns: repeat(2, 1fr); }
+  .fam-children-grid { grid-template-columns: repeat(2, 1fr); justify-content: center; }
   .patriarch-card, .fam-card { width: 155px; }
   .profile-drawer { width: 100%; }
   .fab { bottom: 14px; right: 14px; }

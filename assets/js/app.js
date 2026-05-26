@@ -101,19 +101,13 @@ function _renderGen1() {
   const primaryParentId = patriarch ? patriarch.id : null;
   const allChildren     = primaryParentId ? getChildren(primaryParentId) : [];
 
-  // Build a map of all members in allChildren for quick lookup
   const byId = new Map(allChildren.map(c => [c.id, c]));
-
-  // A member is an in-law if some sibling in allChildren claims them as a spouse
   const claimedAsSpouse = new Set(
     allChildren
       .filter(c => c.spouseId != null && byId.has(c.spouseId))
       .map(c => c.spouseId)
   );
-
-  // Real children = in allChildren but NOT claimed as a spouse by a sibling
-  const uniqueChildren = allChildren.filter(c => !claimedAsSpouse.has(c.id));
-
+  const uniqueChildren  = allChildren.filter(c => !claimedAsSpouse.has(c.id));
   const dobSorted       = [...uniqueChildren].sort((a, b) => (a.dob || '').localeCompare(b.dob || ''));
   const orderedChildren = patriarch ? applyOrder(patriarch.id, dobSorted) : dobSorted;
 
@@ -231,7 +225,6 @@ function _renderFamily(focusId) {
   const spouse   = person.spouseId ? getMember(person.spouseId) : null;
   const children = _getFamilyChildren(person, spouse);
 
-  // Parent context
   if (person.parentId) {
     const parent       = getMember(person.parentId);
     const parentSpouse = parent && parent.spouseId ? getMember(parent.spouseId) : null;
@@ -248,7 +241,6 @@ function _renderFamily(focusId) {
     }
   }
 
-  // Couple section
   const coupleWrap = document.createElement('div');
   coupleWrap.className = 'fam-couple-wrap';
   const coupleRow = document.createElement('div');
@@ -280,7 +272,6 @@ function _renderFamily(focusId) {
   coupleWrap.appendChild(coupleRow);
   container.appendChild(coupleWrap);
 
-  // Children section
   if (children.length > 0) {
     const conn = document.createElement('div');
     conn.className = 'fam-connector';
@@ -303,7 +294,6 @@ function _renderFamily(focusId) {
     container.appendChild(noKids);
   }
 
-  // FAB
   const fab = document.createElement('button');
   fab.className = 'fab';
   fab.innerHTML = '＋ Add Child';
@@ -464,10 +454,17 @@ function closeProfile() {
 function _renderProfileView(m) {
   _profEdit = false;
 
+  // Update drawer avatar
   const av = document.getElementById('dAvatar');
   av.innerHTML = '';
-  if (m.photo) { const img = document.createElement('img'); img.src = m.photo; av.appendChild(img); }
-  else av.textContent = initials(m.name);
+  if (m.photo) {
+    const img = document.createElement('img');
+    img.src = m.photo;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+    av.appendChild(img);
+  } else {
+    av.textContent = initials(m.name);
+  }
 
   document.getElementById('dName').textContent = m.name;
   document.getElementById('dNote').textContent = m.note || '';
@@ -564,14 +561,26 @@ function flipProfAlarm() {
   _redrawCurrentScreen();
 }
 
+/* FIX: directly update the drawer avatar element with the cropped URL,
+   don't wait for Firebase round-trip or getMember() re-read */
 function triggerProfPhoto() {
+  if (!_profId) return;
   triggerPhotoUpload(_profId, (id, url) => {
+    // 1. Persist to data layer
     setPhoto(id, url);
-    _redrawCurrentScreen();
-    const m = getMember(id);
-    if (m && document.getElementById('profileDrawer').classList.contains('open')) {
-      _renderProfileView(m);
+
+    // 2. Immediately update the drawer avatar with the raw url
+    const av = document.getElementById('dAvatar');
+    if (av) {
+      av.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+      av.appendChild(img);
     }
+
+    // 3. Redraw cards on the background screen
+    _redrawCurrentScreen();
   });
 }
 
@@ -679,7 +688,6 @@ function saveMember() {
 
   if (rt === 'spouse' && parentId) {
     linkSpouses(parentId, newM.id);
-    // Do NOT copy parentId to spouse — spouses are found via spouseId link only
   }
 
   closeAddModal();
