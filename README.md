@@ -1,4 +1,4 @@
-# 🌳 Medhuru Family Tree
+# 🌳 My Family Tree
 
 A beautifully designed, responsive family tree web application built using **Vanilla JavaScript** and **Firebase Realtime Database**.  
 The app allows families to manage generations, upload photos, set birthday reminders, reorder members, and explore family branches in an elegant interactive UI.
