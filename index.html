@@ -52,9 +52,7 @@
       <button class="nav-icon-btn" onclick="showAlarmsModal()" title="Birthdays">
         <i class="ti ti-bell"></i>
       </button>
-      <button class="nav-icon-btn" id="pdfBtn" onclick="downloadPDF()" title="Export PDF">
-        <i class="ti ti-download"></i>
-      </button>
+      
       <button id="reorderBtn" class="reorder-btn" onclick="toggleReorderMode()">
         ⠿ Reorder
       </button>
@@ -66,7 +64,7 @@
 
   <div id="bdayBanner" class="bday-banner"></div>
 
-  <div class="gen1-page">
+  <div class="gen1-page" id="gen1-page">
     <div class="gen1-header">
       <h2 class="gen1-title">✦ Medhuru Family Tree ✦</h2>
       <p class="gen1-sub">Generation I &nbsp;·&nbsp; Tap a child to explore their family</p>
@@ -310,9 +308,7 @@
 <input type="file" id="globalPhotoInput" accept="image/*" style="display:none"/>
 <input type="file" id="formPhotoInput"   accept="image/*" style="display:none"/>
 
-<!-- PDF libs -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 
 <!-- App scripts — order matters -->
 <script src="assets/js/config.js"></script>
@@ -320,7 +316,6 @@
 <script src="assets/js/photos.js"></script>
 <script src="assets/js/alarms.js"></script>
 <script src="assets/js/search.js"></script>
-<script src="assets/js/pdf.js"></script>
 <script src="assets/js/reorder.js"></script>
 <script src="assets/js/app.js"></script>
 
