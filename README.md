@@ -199,7 +199,7 @@ http://localhost:8080
 
 You can deploy easily on:
 
-- Netlify
+- Netlify ( I used this )
 - Vercel
 - Firebase Hosting
 - GitHub Pages
