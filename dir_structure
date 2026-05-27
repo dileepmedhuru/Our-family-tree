@@ -1,0 +1,25 @@
+myfamilytree/
+│
+├── assets/
+│   ├── css/
+│   │   └── style.css
+│   │
+│   ├── fonts/
+│   │
+│   └── js/
+│       ├── alarms.js
+│       ├── app.js
+│       ├── config.example.js
+│       ├── config.js
+│       ├── members.js
+│       ├── photos.js
+│       ├── reorder.js
+│       └── search.js
+│
+├── public/
+│
+├── venv/
+│
+├── .gitignore
+│
+└── index.html
